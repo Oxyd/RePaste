@@ -71,6 +71,25 @@
   (define hash (second match))
   (values hash (post-to-coliru (get-paste-of-code-raw hash))))
 
+(define (get-ubuntu-paste-raw url)
+  (define document (get-xexp url))
+  (define (strip-entities html)
+    (match html
+      [(list '@ _ ...) ""]
+      [(list _ elements ...)
+       (string-join (for/list ([elem elements]) (strip-entities elem)) "")]
+      [_ html]))
+  (define (process expr done)
+    (match expr
+      [(list 'div (list '@ (list 'class "paste")) body)
+       (done (strip-entities body))]
+      [(list _ body ...) (for ([e body]) (process e done))]
+      [_ (void)]))
+  (call/ec (lambda (raw) (process document raw))))
+
+(define (handle-ubuntu-paste match)
+  (values (second match) (post-to-coliru (get-ubuntu-paste-raw (first match)))))
+
 (define (repaste connection target match handler)
   (define-values (id result-url) (handler match))
   (irc-send-message connection target
@@ -80,7 +99,8 @@
   `((#px"pastebin\\.com/(\\w+)" . ,handle-pastebin)
     (#px"paste\\.fedoraproject\\.org/paste/(\\w+)" . ,handle-fedora-paste)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
-    (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)))
+    (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
+    (#px"https://paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)))
 
 (define (handle-privmsg connection target message)
   (for ([h handlers])
