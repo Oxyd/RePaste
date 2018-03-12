@@ -46,6 +46,9 @@
 (define (handle-fedora-paste match)
   (handle-simple-pastebin match "https://paste.fedoraproject.org/paste/~a/raw"))
 
+(define (handle-hastebin match)
+  (handle-simple-pastebin match "https://hastebin.com/raw/~a"))
+
 (define (get-raw-gist url)
   (define document (get-xexp url))
   (define (process expr done)
@@ -98,6 +101,7 @@
 (define handlers
   `((#px"pastebin\\.com/(\\w+)" . ,handle-pastebin)
     (#px"paste\\.fedoraproject\\.org/paste/(\\w+)" . ,handle-fedora-paste)
+    (#px"hastebin\\.com/(\\w+)\\.\\w+" . ,handle-hastebin)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
     (#px"https://paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)))
