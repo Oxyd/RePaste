@@ -174,7 +174,7 @@
          (printf "~a~n" (filter-cr content))
          (match message
            [(irc-message _ "PRIVMSG" (list target body) _)
-            (when (and (equal? target (config-value 'channel))
+            (when (and (string-ci=? target (config-value 'channel))
                        (not (ignore? (extract-nick prefix))))
               (handle-privmsg connection target body))]
            [_ '()])
