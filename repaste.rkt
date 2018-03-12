@@ -3,7 +3,7 @@
 
 (define config (file->value "config.rkt"))
 (define (config-value key)
-  (hash-ref config key))
+  (hash-ref config key #f))
 
 (define (filter-cr str)
   (string-replace str "\r" ""))
@@ -160,9 +160,10 @@
   (with-handlers ([exn:break? (lambda (e)
                                 (displayln "Quitting...")
                                 (irc-quit connection))])
-    (irc-send-message connection
-                      "NickServ"
-                      (format "IDENTIFY ~a" (config-value 'password)))
+    (when (config-value 'password)
+      (irc-send-message connection
+                        "NickServ"
+                        (format "IDENTIFY ~a" (config-value 'password))))
     (irc-join-channel connection (config-value 'channel))
 
     (define incoming (irc-connection-incoming connection))
