@@ -32,10 +32,16 @@
   (string-append "http://coliru.stacked-crooked.com/a/"
                  (string-trim result-hash))) ; result-hash has an \n at the end
 
-(define (handle-pastebin match)
+(define (handle-simple-pastebin match raw-format)
   (define hash (second match))
-  (define content (get (format "http://pastebin.com/raw/~a" hash)))
+  (define content (get (format raw-format hash)))
   (values hash (post-to-coliru content)))
+
+(define (handle-pastebin match)
+  (handle-simple-pastebin match "http://pastebin.com/raw/~a"))
+
+(define (handle-fedora-paste match)
+  (handle-simple-pastebin match "https://paste.fedoraproject.org/paste/~a/raw"))
 
 (define (get-raw-gist url)
   (define document (get-xexp url))
@@ -61,6 +67,7 @@
 
 (define handlers
   `((#px"pastebin\\.com/(\\w+)" . ,handle-pastebin)
+    (#px"paste.fedoraproject.org/paste/(\\w+)" . ,handle-fedora-paste)
     (#px"https://gist.github.com/[^/]+/(\\w+)" . ,handle-gist)))
 
 (define (handle-privmsg connection target message)
