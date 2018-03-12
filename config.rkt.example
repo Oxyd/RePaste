@@ -1,0 +1,7 @@
+#hash((server . "chat.freenode.net")
+      (port . 6667)
+      (nick . "RePaste")
+      (username . "RePaste")
+      (real-name . "RePaste bot")
+      (password . "secret")
+      (channel . "##C++"))
