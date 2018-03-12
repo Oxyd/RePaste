@@ -14,6 +14,9 @@
 (define (get-xexp url)
   (call/input-url (string->url url) get-pure-port html->xexp))
 
+(define (get-json url)
+  (call/input-url (string->url url) get-pure-port read-json))
+
 (define (post url data)
   (call/input-url (string->url url)
                   (lambda (u) (post-pure-port u data))
@@ -60,6 +63,14 @@
                                  (get-raw-gist url)))
   (values hash (post-to-coliru (get raw-url))))
 
+(define (get-paste-of-code-raw hash)
+  (hash-ref (get-json (format "https://paste.ofcode.org/~a/json" hash))
+            'code))
+
+(define (handle-paste-of-code match)
+  (define hash (second match))
+  (values hash (post-to-coliru (get-paste-of-code-raw hash))))
+
 (define (repaste connection target match handler)
   (define-values (id result-url) (handler match))
   (irc-send-message connection target
@@ -67,8 +78,9 @@
 
 (define handlers
   `((#px"pastebin\\.com/(\\w+)" . ,handle-pastebin)
-    (#px"paste.fedoraproject.org/paste/(\\w+)" . ,handle-fedora-paste)
-    (#px"https://gist.github.com/[^/]+/(\\w+)" . ,handle-gist)))
+    (#px"paste\\.fedoraproject\\.org/paste/(\\w+)" . ,handle-fedora-paste)
+    (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
+    (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)))
 
 (define (handle-privmsg connection target message)
   (for ([h handlers])
