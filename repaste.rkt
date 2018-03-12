@@ -52,6 +52,9 @@
 (define (handle-bpaste match)
   (handle-simple-pastebin match "https://bpaste.net/raw/~a"))
 
+(define (handle-paste-ee match)
+  (handle-simple-pastebin match "https://paste.ee/r/~a/0"))
+
 (define (get-raw-gist url)
   (define document (get-xexp url))
   (define (process expr done)
@@ -106,6 +109,7 @@
     (#px"paste\\.fedoraproject\\.org/paste/(\\w+)" . ,handle-fedora-paste)
     (#px"hastebin\\.com/(\\w+)\\.\\w+" . ,handle-hastebin)
     (#px"bpaste\\.net/show/(\\w+)" . ,handle-bpaste)
+    (#px"https://paste.ee/p/(\\w+)" . ,handle-paste-ee)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
     (#px"https://paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)))
