@@ -4,4 +4,5 @@
       (username . "RePaste")
       (real-name . "RePaste bot")
       (password . "secret")
-      (channel . "##C++"))
+      (channel . "##C++")
+      (ignore . ("list" "of" "nicks" "to" "ignore" "case" "insensitive")))

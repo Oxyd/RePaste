@@ -141,6 +141,12 @@
          (thread (lambda ()
                    (repaste connection target match handler))))])))
 
+(define (extract-nick prefix)
+  (first (string-split prefix "!")))
+
+(define (ignore? nick)
+  (member nick (config-value 'ignore) string-ci=?))
+
 (define (run)
   (define-values (connection ready)
     (irc-connect (config-value 'server)
@@ -167,7 +173,8 @@
          (printf "~a~n" (filter-cr content))
          (match message
            [(irc-message _ "PRIVMSG" (list target body) _)
-            (when (equal? target (config-value 'channel))
+            (when (and (equal? target (config-value 'channel))
+                       (not (ignore? (extract-nick prefix))))
               (handle-privmsg connection target body))]
            [_ '()])
          (loop)]
