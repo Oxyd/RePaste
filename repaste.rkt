@@ -55,6 +55,14 @@
 (define (handle-paste-ee match)
   (handle-simple-pastebin match "https://paste.ee/r/~a/0"))
 
+(define (handle-irccloud match)
+  (define content (get (format "https://www.irccloud.com/pastebin/raw/~a"
+                               (second match))))
+  ;; For some reason, the paste begins with "# Pastebin <hash>"
+  (define stripped-content (string-join (cdr (string-split content "\n"))
+                                        "\n"))
+  (values (second match) (post-to-coliru stripped-content)))
+
 (define (get-raw-gist url)
   (define document (get-xexp url))
   (define (process expr done)
@@ -109,7 +117,8 @@
     (#px"paste\\.fedoraproject\\.org/paste/(\\w+)" . ,handle-fedora-paste)
     (#px"hastebin\\.com/(\\w+)\\.\\w+" . ,handle-hastebin)
     (#px"bpaste\\.net/show/(\\w+)" . ,handle-bpaste)
-    (#px"https://paste.ee/p/(\\w+)" . ,handle-paste-ee)
+    (#px"paste.ee/p/(\\w+)" . ,handle-paste-ee)
+    (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
     (#px"https://paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)))
