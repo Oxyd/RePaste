@@ -1,5 +1,5 @@
 #lang racket
-(require irc racket/async-channel net/url net/head json)
+(require irc racket/async-channel net/url net/head json html-parsing)
 
 (define config (file->value "config.rkt"))
 (define (config-value key)
@@ -10,6 +10,9 @@
 
 (define (get url)
   (call/input-url (string->url url) get-pure-port port->string))
+
+(define (get-xexp url)
+  (call/input-url (string->url url) get-pure-port html->xexp))
 
 (define (post url data)
   (call/input-url (string->url url)
@@ -34,13 +37,31 @@
   (define content (get (format "http://pastebin.com/raw/~a" hash)))
   (values hash (post-to-coliru content)))
 
+(define (get-raw-gist url)
+  (define document (get-xexp url))
+  (define (process expr done)
+    (match expr
+      [(list 'a (list '@ (list 'href href) _ ...) "Raw")
+       (done href)]
+      [(list _ body ...) (for ([e body]) (process e done))]
+      [_ (void)]))
+  (call/ec (lambda (raw) (process document raw))))
+
+(define (handle-gist match)
+  (define url (first match))
+  (define hash (second match))
+  (define raw-url (string-append "https://gist.githubusercontent.com"
+                                 (get-raw-gist url)))
+  (values hash (post-to-coliru (get raw-url))))
+
 (define (repaste connection target match handler)
   (define-values (id result-url) (handler match))
   (irc-send-message connection target
                     (format "Paste ~a moved to ~a" id result-url)))
 
 (define handlers
-  `((#px"pastebin\\.com/(\\w+)" . ,handle-pastebin)))
+  `((#px"pastebin\\.com/(\\w+)" . ,handle-pastebin)
+    (#px"https://gist.github.com/[^/]+/(\\w+)" . ,handle-gist)))
 
 (define (handle-privmsg connection target message)
   (for ([h handlers])
