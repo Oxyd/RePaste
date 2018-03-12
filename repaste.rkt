@@ -55,6 +55,13 @@
 (define (handle-paste-ee match)
   (handle-simple-pastebin match "https://paste.ee/r/~a/0"))
 
+(define (handle-pound-python match)
+  ;; #Python paste? Really?
+  (handle-simple-pastebin match "https://paste.pound-python.org/raw/~a/"))
+
+(define (handle-dpaste match)
+  (handle-simple-pastebin match "http://dpaste.com/~a.txt"))
+
 (define (handle-irccloud match)
   (define content (get (format "https://www.irccloud.com/pastebin/raw/~a"
                                (second match))))
@@ -118,6 +125,8 @@
     (#px"hastebin\\.com/(\\w+)\\.\\w+" . ,handle-hastebin)
     (#px"bpaste\\.net/show/(\\w+)" . ,handle-bpaste)
     (#px"paste.ee/p/(\\w+)" . ,handle-paste-ee)
+    (#px"paste\\.pound-python\\.org/show/(\\w+)/" . ,handle-pound-python)
+    (#px"dpaste\\.com/(\\w+)" . ,handle-dpaste)
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
