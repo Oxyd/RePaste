@@ -8,19 +8,33 @@
 (define (filter-cr str)
   (string-replace str "\r" ""))
 
+(define (call/check-status url port f)
+  (define headers (purify-port port))
+  (define match (regexp-match #px"HTTP/\\d\\.\\d (\\d{3})" headers))
+  (when (not match)
+    (raise-user-error (format "Can't read ~a: Unexpected HTTP headers: ~a"
+                              url headers)))
+  (when (not (= (string->number (second match)) 200))
+    (raise-user-error (format "Couldn't read ~a: HTTP status ~a"
+                              url (second match))))
+  (f port))
+
+(define (wrap url f)
+  (lambda (port) (call/check-status url port f)))
+
 (define (get url)
-  (call/input-url (string->url url) get-pure-port port->string))
+  (call/input-url (string->url url) get-impure-port (wrap url port->string)))
 
 (define (get-xexp url)
-  (call/input-url (string->url url) get-pure-port html->xexp))
+  (call/input-url (string->url url) get-impure-port (wrap url html->xexp)))
 
 (define (get-json url)
-  (call/input-url (string->url url) get-pure-port read-json))
+  (call/input-url (string->url url) get-impure-port (wrap url read-json)))
 
 (define (post url data)
   (call/input-url (string->url url)
-                  (lambda (u) (post-pure-port u data))
-                  port->string))
+                  (lambda (u) (post-impure-port u data))
+                  (wrap url port->string)))
 
 (define jsexpr->bytes (compose string->bytes/utf-8 jsexpr->string))
 
