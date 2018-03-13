@@ -49,40 +49,35 @@
   (string-append "http://coliru.stacked-crooked.com/a/"
                  (string-trim result-hash))) ; result-hash has an \n at the end
 
+(define (match-url m) (first m))
+(define (match-hash m) (second m))
+
 (define (handle-simple-pastebin match raw-format)
-  (define hash (second match))
-  (define content (get (format raw-format hash)))
-  (values hash (post-to-coliru content)))
+  (define content (get (format raw-format (match-hash match))))
+  (values (match-hash match) (post-to-coliru content)))
 
-(define (handle-pastebin match)
-  (handle-simple-pastebin match "http://pastebin.com/raw/~a"))
+(define (make-simple-matcher raw-format)
+  (lambda (match)
+    (handle-simple-pastebin match raw-format)))
 
-(define (handle-fedora-paste match)
-  (handle-simple-pastebin match "https://paste.fedoraproject.org/paste/~a/raw"))
-
-(define (handle-hastebin match)
-  (handle-simple-pastebin match "https://hastebin.com/raw/~a"))
-
-(define (handle-bpaste match)
-  (handle-simple-pastebin match "https://bpaste.net/raw/~a"))
-
-(define (handle-paste-ee match)
-  (handle-simple-pastebin match "https://paste.ee/r/~a/0"))
-
-(define (handle-pound-python match)
-  ;; #Python paste? Really?
-  (handle-simple-pastebin match "https://paste.pound-python.org/raw/~a/"))
-
-(define (handle-dpaste match)
-  (handle-simple-pastebin match "http://dpaste.com/~a.txt"))
+(define handle-pastebin (make-simple-matcher "http://pastebin.com/raw/~a"))
+(define handle-fedora-paste (make-simple-matcher
+                             "https://paste.fedoraproject.org/paste/~a/raw"))
+(define handle-hastebin (make-simple-matcher "https://hastebin.com/raw/~a"))
+(define handle-bpaste (make-simple-matcher "https://bpaste.net/raw/~a"))
+(define handle-paste-ee (make-simple-matcher "https://paste.ee/r/~a/0"))
+;; #Python paste? Really?
+(define handle-pound-python (make-simple-matcher
+                             "https://paste.pound-python.org/raw/~a/"))
+(define handle-dpaste (make-simple-matcher "http://dpaste.com/~a.txt"))
 
 (define (handle-irccloud match)
   (define content (get (format "https://www.irccloud.com/pastebin/raw/~a"
-                               (second match))))
+                               (match-hash match))))
   ;; For some reason, the paste begins with "# Pastebin <hash>"
   (define stripped-content (string-join (cdr (string-split content "\n"))
                                         "\n"))
-  (values (second match) (post-to-coliru stripped-content)))
+  (values (match-hash match) (post-to-coliru stripped-content)))
 
 (define (get-raw-gist url)
   (define document (get-xexp url))
@@ -95,19 +90,17 @@
   (call/ec (lambda (raw) (process document raw))))
 
 (define (handle-gist match)
-  (define url (first match))
-  (define hash (second match))
   (define raw-url (string-append "https://gist.githubusercontent.com"
-                                 (get-raw-gist url)))
-  (values hash (post-to-coliru (get raw-url))))
+                                 (get-raw-gist (match-url match))))
+  (values (match-hash match) (post-to-coliru (get raw-url))))
 
 (define (get-paste-of-code-raw hash)
   (hash-ref (get-json (format "https://paste.ofcode.org/~a/json" hash))
             'code))
 
 (define (handle-paste-of-code match)
-  (define hash (second match))
-  (values hash (post-to-coliru (get-paste-of-code-raw hash))))
+  (values (match-hash match)
+          (post-to-coliru (get-paste-of-code-raw (match-hash match)))))
 
 (define (get-ubuntu-paste-raw url)
   (define document (get-xexp url))
@@ -126,7 +119,8 @@
   (call/ec (lambda (raw) (process document raw))))
 
 (define (handle-ubuntu-paste match)
-  (values (second match) (post-to-coliru (get-ubuntu-paste-raw (first match)))))
+  (values (match-hash match)
+          (post-to-coliru (get-ubuntu-paste-raw (match-url match)))))
 
 (define (repaste connection target match handler)
   (define-values (id result-url) (handler match))
@@ -148,12 +142,12 @@
 
 (define (handle-privmsg connection target message)
   (for ([h handlers])
-    (match h
-      [(cons pattern handler)
-       (define match (regexp-match pattern message))
-       (when match
-         (thread (lambda ()
-                   (repaste connection target match handler))))])))
+    (define pattern (car h))
+    (define handler (cdr h))
+    (define match (regexp-match pattern message))
+    (when match
+      (thread (lambda ()
+                (repaste connection target match handler))))))
 
 (define (extract-nick prefix)
   (first (string-split prefix "!")))
