@@ -122,10 +122,13 @@
   (values (match-hash match)
           (post-to-coliru (get-ubuntu-paste-raw (match-url match)))))
 
+(define repaste-format
+  (string-append "Paste ~a was moved to ~a Please avoid paste sites that can't "
+                 "even compile your code."))
 (define (repaste connection target match handler)
   (define-values (id result-url) (handler match))
   (irc-send-message connection target
-                    (format "Paste ~a moved to ~a" id result-url)))
+                    (format repaste-format id result-url)))
 
 (define handlers
   `((#px"pastebin\\.com/(\\w+)" . ,handle-pastebin)
