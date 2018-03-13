@@ -38,13 +38,13 @@
 
 (define jsexpr->bytes (compose string->bytes/utf-8 jsexpr->string))
 
+(define compile-flags
+  "g++ -std=c++17 -O2 -Wall -Wextra -pedantic -pthread main.cpp && ./a.out")
 (define (post-to-coliru code)
   (define result-hash
     (post "http://coliru.stacked-crooked.com/share"
           (jsexpr->bytes
-           (make-hash `((cmd . ,(string-append "g++ -std=c++17 -O2 -Wall "
-                                               "-pedantic -pthread main.cpp "
-                                               "&& ./a.out"))
+           (make-hash `((cmd . ,compile-flags)
                         (src . ,code))))))
   (string-append "http://coliru.stacked-crooked.com/a/"
                  (string-trim result-hash))) ; result-hash has an \n at the end
