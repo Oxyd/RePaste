@@ -70,6 +70,8 @@
 (define handle-pound-python (make-simple-matcher
                              "https://paste.pound-python.org/raw/~a/"))
 (define handle-dpaste (make-simple-matcher "http://dpaste.com/~a.txt"))
+(define handle-debian-paste (make-simple-matcher
+                             "http://paste.debian.net/plain/~a"))
 
 (define (handle-irccloud match)
   (define content (get (format "https://www.irccloud.com/pastebin/raw/~a"
@@ -138,6 +140,7 @@
     (#px"paste.ee/p/(\\w+)" . ,handle-paste-ee)
     (#px"paste\\.pound-python\\.org/show/(\\w+)/" . ,handle-pound-python)
     (#px"dpaste\\.com/(\\w+)" . ,handle-dpaste)
+    (#px"paste\\.debian\\.net/(\\d+)/" . ,handle-debian-paste)
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
