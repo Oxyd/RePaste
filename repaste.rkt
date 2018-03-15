@@ -81,11 +81,11 @@
                                         "\n"))
   (values (match-hash match) (post-to-coliru stripped-content)))
 
-(define (get-raw-gist url)
+(define (get-raw-gist-url url)
   (define document (get-xexp url))
   (define (process expr done)
     (match expr
-      [(list 'a (list '@ (list 'href href) _ ...) "Raw")
+      [(list 'a (list-no-order '@ (list 'href href) _ ...) "Raw")
        (done href)]
       [(list _ body ...) (for ([e body]) (process e done))]
       [_ (void)]))
@@ -93,7 +93,7 @@
 
 (define (handle-gist match)
   (define raw-url (string-append "https://gist.githubusercontent.com"
-                                 (get-raw-gist (match-url match))))
+                                 (get-raw-gist-url (match-url match))))
   (values (match-hash match) (post-to-coliru (get raw-url))))
 
 (define (get-paste-of-code-raw hash)
