@@ -125,12 +125,11 @@
           (post-to-coliru (get-ubuntu-paste-raw (match-url match)))))
 
 (define repaste-format
-  (string-append "Paste ~a was moved to ~a Please avoid paste sites that can't "
-                 "even compile your code."))
-(define (repaste connection target match handler)
+  (string-append "Paste ~a was moved to ~a ~a, please avoid paste sites that "
+                 "can't even compile your code."))
+(define (repaste user match handler)
   (define-values (id result-url) (handler match))
-  (irc-send-message connection target
-                    (format repaste-format id result-url)))
+  (format repaste-format id result-url user))
 
 (define handlers
   `((#px"pastebin\\.com/(\\w+)" . ,handle-pastebin)
@@ -146,14 +145,22 @@
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
     (#px"https://paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)))
 
-(define (handle-privmsg connection target message)
+(define (handle-privmsg connection target user message)
   (for ([h handlers])
     (define pattern (car h))
     (define handler (cdr h))
     (define match (regexp-match pattern message))
     (when match
-      (thread (lambda ()
-                (repaste connection target match handler))))))
+      (thread
+       (lambda ()
+         (send-privmsg target (repaste user match handler)))))))
+
+(define irc-thread #f)
+(define (send-privmsg channel message)
+  (cond
+    [(and (thread? irc-thread) (thread-running? irc-thread))
+     (thread-send irc-thread (cons channel message))]
+    [else (error "IRC thread not running!")]))
 
 (define (extract-nick prefix)
   (first (string-split prefix "!")))
@@ -170,6 +177,7 @@
                  (config-value 'real-name)
                  #:return-eof #t))
   (void (sync ready))
+  (set! irc-thread (current-thread))
 
   (with-handlers ([exn:break? (lambda (e)
                                 (displayln "Quitting...")
@@ -181,19 +189,27 @@
     (irc-join-channel connection (config-value 'channel))
 
     (define incoming (irc-connection-incoming connection))
+    (define outgoing (thread-receive-evt))
     (let loop ()
-      (define message (async-channel-get incoming))
-      (match message
-        [(irc-message prefix command parameters content)
-         (printf "~a~n" (filter-cr content))
-         (match message
-           [(irc-message _ "PRIVMSG" (list target body) _)
-            (when (and (string-ci=? target (config-value 'channel))
-                       (not (ignore? (extract-nick prefix))))
-              (handle-privmsg connection target body))]
-           [_ '()])
+      (define message (sync incoming outgoing))
+      (cond
+        [(eq? message outgoing)
+         (define msg (thread-receive))
+         (irc-send-message connection (car msg) (cdr msg))
          (loop)]
-        [eof (displayln "Disconnected")]))))
+        [else
+         (match message
+           [(irc-message prefix command parameters content)
+            (printf "~a~n" (filter-cr content))
+            (match message
+              [(irc-message _ "PRIVMSG" (list target body) _)
+               (define user (extract-nick prefix))
+               (when (and (string-ci=? target (config-value 'channel))
+                          (not (ignore? user)))
+                 (handle-privmsg connection target user body))]
+              [_ '()])
+            (loop)]
+           [eof (displayln "Disconnected")])]))))
 
 (module* main #f
   (run))
