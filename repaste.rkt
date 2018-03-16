@@ -1,5 +1,11 @@
 #lang racket
-(require irc racket/async-channel net/url net/head json html-parsing)
+(require irc
+         racket/async-channel
+         net/url
+         net/head
+         json
+         html-parsing
+         racket/serialize)
 
 (define config (file->value "config.rkt"))
 (define (config-value key)
@@ -124,12 +130,68 @@
   (values (match-hash match)
           (post-to-coliru (get-ubuntu-paste-raw (match-url match)))))
 
-(define repaste-format
+(define nick-counts-file "counts.rktd")
+(define nick-counts (make-hash))
+(with-handlers ([exn:fail:filesystem? void])
+  (call-with-input-file nick-counts-file
+    (lambda (in)
+      (set! nick-counts (deserialize (read in))))))
+
+(define nick-counts-sema (make-semaphore 1))
+(define (get-and-increment-nick-count nick)
+  (call-with-semaphore
+   nick-counts-sema
+   (lambda ()
+     (define previous (hash-ref nick-counts nick 0))
+     (define new (add1 previous))
+     (hash-set! nick-counts nick new)
+     (call-with-output-file nick-counts-file #:exists 'replace
+       (lambda (out)
+         (write (serialize nick-counts) out)))
+     new)))
+
+(define ordinal-units (list "zeroeth" "first" "second" "third" "fourth" "fifth"
+                            "sixth" "seventh" "eighth" "ninth"))
+(define ordinal-irregular (list "tenth" "eleventh" "twelfth" "thirteenth"
+                                "fourteenth" "fifteenth" "sixteenth"
+                                "seventeenth" "eighteenth" "nineteenth"))
+(define ordinal-tens (list "tenth" "twentieth" "thirtieth" "fortieth" "fiftieth"
+                           "sixtieth" "seventieth" "eightieth" "ninetieth"))
+(define cardinal-tens (list "ten" "twenty" "thirty" "forty" "fifty" "sixty"
+                            "seventy" "eighty" "ninety"))
+(define (number->english/ordinal n)
+  (define (units-index n) (remainder n 10))
+  (define (tens-index n) (sub1 (quotient n 10)))
+  (cond
+    [(< n 10) (list-ref ordinal-units n)]
+    [(< n 20) (list-ref ordinal-irregular (- n 10))]
+    [(and (< n 100) (= (units-index n) 0))
+     (list-ref ordinal-tens (tens-index n))]
+    [(< n 100) (string-append (list-ref cardinal-tens (tens-index n))
+                              "-"
+                              (list-ref ordinal-units (units-index n)))]
+    [else
+     (string-append (number->string n)
+                    (case (remainder n 10)
+                      [(1) "st"]
+                      [(2) "nd"]
+                      [(3) "rd"]
+                      [else "th"]))]))
+
+(define repaste-format-first
   (string-append "Paste ~a was moved to ~a ~a, please avoid paste sites that "
                  "can't even compile your code."))
+(define repaste-format-subsequent
+  (string-append "Paste ~a was moved to ~a ~a, for the ~a time, do not use "
+                 "paste sites that can't compile code."))
+
 (define (repaste user match handler)
   (define-values (id result-url) (handler match))
-  (format repaste-format id result-url user))
+  (define count (get-and-increment-nick-count user))
+  (case count
+    [(1) (format repaste-format-first id result-url user)]
+    [else (format repaste-format-subsequent
+                  id result-url user (number->english/ordinal count))]))
 
 (define handlers
   `((#px"pastebin\\.com/(\\w+)" . ,handle-pastebin)
