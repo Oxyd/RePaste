@@ -203,7 +203,7 @@
     (#px"paste\\.pound-python\\.org/show/(\\w+)/" . ,handle-pound-python)
     (#px"dpaste\\.com/(\\w+)" . ,handle-dpaste)
     (#px"paste\\.debian\\.net/(\\d+)/" . ,handle-debian-paste)
-    (#px"ptpb.pw/([^/&#]+)" . ,handle-ptpb)
+    (#px"ptpb.pw/([^/&# ]+)" . ,handle-ptpb)
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
