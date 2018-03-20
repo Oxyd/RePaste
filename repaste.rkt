@@ -78,6 +78,7 @@
 (define handle-dpaste (make-simple-handler "http://dpaste.com/~a.txt"))
 (define handle-debian-paste (make-simple-handler
                              "http://paste.debian.net/plain/~a"))
+(define handle-ptpb (make-simple-handler "https://ptpb.pw/~a"))
 
 (define (handle-irccloud match)
   (define content (get (format "https://www.irccloud.com/pastebin/raw/~a"
@@ -202,6 +203,7 @@
     (#px"paste\\.pound-python\\.org/show/(\\w+)/" . ,handle-pound-python)
     (#px"dpaste\\.com/(\\w+)" . ,handle-dpaste)
     (#px"paste\\.debian\\.net/(\\d+)/" . ,handle-debian-paste)
+    (#px"ptpb.pw/([^/&#]+)" . ,handle-ptpb)
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
@@ -211,7 +213,7 @@
   (for ([h handlers])
     (define pattern (car h))
     (define handler (cdr h))
-    (define match (regexp-match pattern message))
+    (define match (regexp-match pattern (filter-cr message)))
     (when match
       (thread
        (lambda ()
