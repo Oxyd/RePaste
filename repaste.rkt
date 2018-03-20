@@ -62,21 +62,21 @@
   (define content (get (format raw-format (match-hash match))))
   (values (match-hash match) (post-to-coliru content)))
 
-(define (make-simple-matcher raw-format)
+(define (make-simple-handler raw-format)
   (lambda (match)
     (handle-simple-pastebin match raw-format)))
 
-(define handle-pastebin (make-simple-matcher "http://pastebin.com/raw/~a"))
-(define handle-fedora-paste (make-simple-matcher
+(define handle-pastebin (make-simple-handler "http://pastebin.com/raw/~a"))
+(define handle-fedora-paste (make-simple-handler
                              "https://paste.fedoraproject.org/paste/~a/raw"))
-(define handle-hastebin (make-simple-matcher "https://hastebin.com/raw/~a"))
-(define handle-bpaste (make-simple-matcher "https://bpaste.net/raw/~a"))
-(define handle-paste-ee (make-simple-matcher "https://paste.ee/r/~a/0"))
+(define handle-hastebin (make-simple-handler "https://hastebin.com/raw/~a"))
+(define handle-bpaste (make-simple-handler "https://bpaste.net/raw/~a"))
+(define handle-paste-ee (make-simple-handler "https://paste.ee/r/~a/0"))
 ;; #Python paste? Really?
-(define handle-pound-python (make-simple-matcher
+(define handle-pound-python (make-simple-handler
                              "https://paste.pound-python.org/raw/~a/"))
-(define handle-dpaste (make-simple-matcher "http://dpaste.com/~a.txt"))
-(define handle-debian-paste (make-simple-matcher
+(define handle-dpaste (make-simple-handler "http://dpaste.com/~a.txt"))
+(define handle-debian-paste (make-simple-handler
                              "http://paste.debian.net/plain/~a"))
 
 (define (handle-irccloud match)
