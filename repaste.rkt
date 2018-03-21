@@ -196,7 +196,8 @@
 
 (define handlers
   `((#px"pastebin\\.com/(\\w+)" . ,handle-pastebin)
-    (#px"paste\\.fedoraproject\\.org/paste/(\\w+)" . ,handle-fedora-paste)
+    (#px"paste\\.fedoraproject\\.org/paste/([a-zA-Z0-9_-]+)"
+     . ,handle-fedora-paste)
     (#px"hastebin\\.com/(\\w+)\\.\\w+" . ,handle-hastebin)
     (#px"bpaste\\.net/show/(\\w+)" . ,handle-bpaste)
     (#px"paste\\.ee/p/(\\w+)" . ,handle-paste-ee)
