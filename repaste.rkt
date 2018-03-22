@@ -234,16 +234,19 @@
   (member nick (config-value 'ignore) string-ci=?))
 
 (define (run)
-  (define-values (connection ready)
-    (irc-connect (config-value 'server)
-                 (config-value 'port)
-                 (config-value 'nick)
-                 (config-value 'username)
-                 (config-value 'real-name)
-                 #:return-eof #t))
-  (void (sync ready))
-  (set! irc-thread (current-thread))
+  (define (connect)
+    (define-values (connection ready)
+      (irc-connect (config-value 'server)
+                   (config-value 'port)
+                   (config-value 'nick)
+                   (config-value 'username)
+                   (config-value 'real-name)
+                   #:return-eof #t))
+    (sync ready)
+    connection)
 
+  (set! irc-thread (current-thread))
+  (define connection (connect))
   (with-handlers ([exn:break? (lambda (e)
                                 (displayln "Quitting...")
                                 (irc-quit connection))])
@@ -274,7 +277,10 @@
                  (handle-privmsg connection target user body))]
               [_ '()])
             (loop)]
-           [eof (displayln "Disconnected")])]))))
+           [eof
+            (displayln "--- Disconnected ---")
+            (set! connection (connect))
+            (loop)])]))))
 
 (module* main #f
   (run))
