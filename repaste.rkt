@@ -79,6 +79,7 @@
 (define handle-debian-paste (make-simple-handler
                              "http://paste.debian.net/plain/~a"))
 (define handle-ptpb (make-simple-handler "https://ptpb.pw/~a"))
+(define handle-thepasteb (make-simple-handler "https://thepasteb.in/raw/~a"))
 
 (define (handle-irccloud match)
   (define content (get (format "https://www.irccloud.com/pastebin/raw/~a"
@@ -205,6 +206,7 @@
     (#px"dpaste\\.com/(\\w+)" . ,handle-dpaste)
     (#px"paste\\.debian\\.net/(\\d+)/" . ,handle-debian-paste)
     (#px"ptpb\\.pw/([^/&# ]+)" . ,handle-ptpb)
+    (#px"thepasteb\\.in/p/(\\w+)" . ,handle-thepasteb)
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
