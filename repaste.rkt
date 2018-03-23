@@ -66,21 +66,6 @@
   (lambda (match)
     (handle-simple-pastebin match raw-format)))
 
-(define handle-pastebin (make-simple-handler "http://pastebin.com/raw/~a"))
-(define handle-fedora-paste (make-simple-handler
-                             "https://paste.fedoraproject.org/paste/~a/raw"))
-(define handle-hastebin (make-simple-handler "https://hastebin.com/raw/~a"))
-(define handle-bpaste (make-simple-handler "https://bpaste.net/raw/~a"))
-(define handle-paste-ee (make-simple-handler "https://paste.ee/r/~a/0"))
-;; #Python paste? Really?
-(define handle-pound-python (make-simple-handler
-                             "https://paste.pound-python.org/raw/~a/"))
-(define handle-dpaste (make-simple-handler "http://dpaste.com/~a.txt"))
-(define handle-debian-paste (make-simple-handler
-                             "http://paste.debian.net/plain/~a"))
-(define handle-ptpb (make-simple-handler "https://ptpb.pw/~a"))
-(define handle-thepasteb (make-simple-handler "https://thepasteb.in/raw/~a"))
-
 (define (handle-irccloud match)
   (define content (get (format "https://www.irccloud.com/pastebin/raw/~a"
                                (match-hash match))))
@@ -196,17 +181,26 @@
                   id result-url user (number->english/ordinal count))]))
 
 (define handlers
-  `((#px"pastebin\\.com/(\\w+)" . ,handle-pastebin)
+  `((#px"pastebin\\.com/(\\w+)"
+     . ,(make-simple-handler "http://pastebin.com/raw/~a"))
     (#px"paste\\.fedoraproject\\.org/paste/([a-zA-Z0-9_-]+)"
-     . ,handle-fedora-paste)
-    (#px"hastebin\\.com/(\\w+)\\.\\w+" . ,handle-hastebin)
-    (#px"bpaste\\.net/show/(\\w+)" . ,handle-bpaste)
-    (#px"paste\\.ee/p/(\\w+)" . ,handle-paste-ee)
-    (#px"paste\\.pound-python\\.org/show/(\\w+)/" . ,handle-pound-python)
-    (#px"dpaste\\.com/(\\w+)" . ,handle-dpaste)
-    (#px"paste\\.debian\\.net/(\\d+)/" . ,handle-debian-paste)
-    (#px"ptpb\\.pw/([^/&# ]+)" . ,handle-ptpb)
-    (#px"thepasteb\\.in/p/(\\w+)" . ,handle-thepasteb)
+     . ,(make-simple-handler "https://paste.fedoraproject.org/paste/~a/raw"))
+    (#px"hastebin\\.com/(\\w+)\\.\\w+"
+     . ,(make-simple-handler "https://hastebin.com/raw/~a"))
+    (#px"bpaste\\.net/show/(\\w+)"
+     . ,(make-simple-handler "https://bpaste.net/raw/~a"))
+    (#px"paste\\.ee/p/(\\w+)"
+     . ,(make-simple-handler "https://paste.ee/r/~a/0"))
+    (#px"paste\\.pound-python\\.org/show/(\\w+)/"
+     . ,(make-simple-handler "https://paste.pound-python.org/raw/~a/"))
+    (#px"dpaste\\.com/(\\w+)"
+     . ,(make-simple-handler "http://dpaste.com/~a.txt"))
+    (#px"paste\\.debian\\.net/(\\d+)/"
+     . ,(make-simple-handler "http://paste.debian.net/plain/~a"))
+    (#px"ptpb\\.pw/([^/&# ]+)"
+     . ,(make-simple-handler "https://ptpb.pw/~a"))
+    (#px"thepasteb\\.in/p/(\\w+)"
+     . ,(make-simple-handler "https://thepasteb.in/raw/~a"))
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
