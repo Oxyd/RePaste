@@ -5,7 +5,8 @@
          net/head
          json
          html-parsing
-         racket/serialize)
+         racket/serialize
+         sxml)
 
 (define config (file->value "config.rkt"))
 (define (config-value key)
@@ -97,25 +98,30 @@
   (values (match-hash match)
           (post-to-coliru (get-paste-of-code-raw (match-hash match)))))
 
-(define (get-ubuntu-paste-raw url)
-  (define document (get-xexp url))
-  (define (strip-entities html)
-    (match html
-      [(list '@ _ ...) ""]
-      [(list _ elements ...)
-       (string-join (for/list ([elem elements]) (strip-entities elem)) "")]
-      [_ html]))
-  (define (process expr done)
-    (match expr
-      [(list 'div (list '@ (list 'class "paste")) body)
-       (done (strip-entities body))]
-      [(list _ body ...) (for ([e body]) (process e done))]
-      [_ (void)]))
-  (call/ec (lambda (raw) (process document raw))))
+(define (strip-tags html)
+  (match html
+    [(list '@ _ ...) ""]
+    [(list elements ...)
+     (string-join
+      (for/list ([elem elements])
+        (strip-tags elem)) "")]
+    [(? string?)
+     html]
+    [_ ""]))
 
 (define (handle-ubuntu-paste match)
-  (values (match-hash match)
-          (post-to-coliru (get-ubuntu-paste-raw (match-url match)))))
+  (define content
+    (strip-tags ((sxpath "//td[@class='code']/div[@class='paste']//pre")
+                 (get-xexp (match-url match)))))
+  (values (match-hash match) (post-to-coliru content)))
+
+(define (handle-crna-cc match)
+  (define pre-contents ((sxpath "//div[@class='pasted']//pre")
+                        (get-xexp (match-url match))))
+  (when (empty? pre-contents)
+    (raise-user-error "No paste contents found"))
+  (define content (strip-tags pre-contents))
+  (values (match-hash match) (post-to-coliru content)))
 
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
@@ -208,7 +214,8 @@
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
-    (#px"https://paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)))
+    (#px"https://paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)
+    (#px"http://crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)))
 
 (define (handle-privmsg connection target user message)
   (for ([h handlers])
