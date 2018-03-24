@@ -203,6 +203,8 @@
      . ,(make-simple-handler "https://thepasteb.in/raw/~a"))
     (#px"cfp\\.vim-cn\\.com/(\\w+)"
      . ,(make-simple-handler "https://cfp.vim-cn.com/~a"))
+    (#px"paste\\.awesom\\.eu/(\\w+)"
+     . ,(make-simple-handler "http://paste.awesom.eu/raw/~a"))
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
