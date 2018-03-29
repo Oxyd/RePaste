@@ -211,6 +211,8 @@
      . ,(make-simple-handler "https://cfp.vim-cn.com/~a"))
     (#px"paste\\.awesom\\.eu/(\\w+)"
      . ,(make-simple-handler "http://paste.awesom.eu/raw/~a"))
+    (#px"lpaste\\.net/(\\d+)"
+     . ,(make-simple-handler "http://lpaste.net/raw/~a"))
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
