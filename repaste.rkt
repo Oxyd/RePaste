@@ -187,7 +187,7 @@
                   id result-url user (number->english/ordinal count))]))
 
 (define handlers
-  `((#px"pastebin\\.com/(\\w+)"
+  `((#px"pastebin\\.com/(?:raw/)?(\\w+)"
      . ,(make-simple-handler "http://pastebin.com/raw/~a"))
     (#px"paste\\.fedoraproject\\.org/paste/([a-zA-Z0-9_-]+)"
      . ,(make-simple-handler "https://paste.fedoraproject.org/paste/~a/raw"))
