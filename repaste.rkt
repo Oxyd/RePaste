@@ -214,6 +214,8 @@
     (#px"lpaste\\.net/(\\d+)"
      . ,(make-simple-handler "http://lpaste.net/raw/~a"))
     (#px"termbin\\.com/(\\w+)" . ,(make-simple-handler "http://termbin.com/~a"))
+    (#px"la\\.wentropy\\.com/(\\w+)"
+     . ,(make-simple-handler "https://la.wentropy.com/~a"))
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
