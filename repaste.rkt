@@ -258,6 +258,11 @@
     (sync ready)
     connection)
 
+  (define ping-interval (* 60 1000))
+  (define max-ping (* (* 3 60) 1000))
+  (define (make-pinger-evt)
+    (alarm-evt (+ (current-inexact-milliseconds) ping-interval)))
+
   (set! irc-thread (current-thread))
   (define connection (connect))
   (with-handlers ([exn:break? (lambda (e)
@@ -271,12 +276,25 @@
 
     (define incoming (irc-connection-incoming connection))
     (define outgoing (thread-receive-evt))
+    (define pinger-evt (make-pinger-evt))
+    (define last-pong-received (current-milliseconds))
     (let loop ()
-      (define message (sync incoming outgoing))
+      (define message (sync incoming outgoing pinger-evt))
       (cond
         [(eq? message outgoing)
          (define msg (thread-receive))
          (irc-send-message connection (car msg) (cdr msg))
+         (loop)]
+        [(eq? message pinger-evt)
+         (define delta (- (current-milliseconds) last-pong-received))
+         (cond
+           [(> delta max-ping)
+            (displayln "--- Ping timeout! ---")
+            (irc-quit connection)]
+           [else
+            (irc-send-command connection "PING"
+                              (number->string (current-milliseconds)))])
+         (set! pinger-evt (make-pinger-evt))
          (loop)]
         [else
          (match message
@@ -288,12 +306,13 @@
                (when (and (string-ci=? target (config-value 'channel))
                           (not (ignore? user)))
                  (handle-privmsg connection target user body))]
+              [(irc-message _ "PONG" _ _)
+               (set! last-pong-received (current-milliseconds))]
               [_ '()])
             (loop)]
            [eof
             (displayln "--- Disconnected ---")
-            (set! connection (connect))
-            (loop)])]))))
+            (run)])]))))
 
 (module* main #f
   (run))
