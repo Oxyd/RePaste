@@ -3,10 +3,16 @@
          racket/async-channel
          net/url
          net/head
+         net/base64
          json
          html-parsing
          racket/serialize
-         sxml)
+         sxml
+         ffi/unsafe
+         ffi/unsafe/define
+         ffi/unsafe/alloc
+         openssl/libcrypto
+         file/gunzip)
 
 (define config (file->value "config.rkt"))
 (define (config-value key)
@@ -123,6 +129,145 @@
   (define content (strip-tags pre-contents))
   (values (match-hash match) (post-to-coliru content)))
 
+(define-ffi-definer define-crypto libcrypto)
+(define-crypto ERR_get_error (_fun -> _long))
+(define-crypto ERR_error_string
+  (_fun _long (_buf : (_bytes o 512)) -> _bytes))
+
+(define (check-crypto-result name r)
+  (unless (= r 1)
+    (error (format "Crypto error in ~a: ~a"
+                   name
+                   (ERR_error_string (ERR_get_error))))))
+
+(define-cpointer-type _EVP_CIPHER)
+(define-cpointer-type _EVP_CIPHER_CTX)
+(define-cpointer-type _EVP_MD)
+(define-cpointer-type _ENGINE)
+(define-crypto EVP_CIPHER_CTX_free
+  (_fun _EVP_CIPHER_CTX -> _void)
+  #:wrap (deallocator))
+(define-crypto EVP_CIPHER_CTX_new
+  (_fun -> _EVP_CIPHER_CTX)
+  #:wrap (allocator EVP_CIPHER_CTX_free))
+(define-crypto EVP_aes_128_ccm (_fun -> _EVP_CIPHER))
+(define-crypto EVP_aes_192_ccm (_fun -> _EVP_CIPHER))
+(define-crypto EVP_aes_256_ccm (_fun -> _EVP_CIPHER))
+(define-crypto EVP_sha256 (_fun -> _EVP_MD))
+(define-crypto PKCS5_PBKDF2_HMAC
+  (_fun (pass : _bytes)
+        (_int = (bytes-length pass))
+        (salt : _bytes)
+        (_int = (bytes-length salt))
+        _int
+        _EVP_MD
+        (keylen : _int)
+        (out : (_bytes o keylen))
+        -> (r : _int)
+        -> (begin
+             (check-crypto-result "PKCS5_PBKDF2_HMAC" r)
+             out)))
+
+(define EVP_CTRL_CCM_SET_IVLEN #x9)
+(define EVP_CTRL_CCM_SET_TAG #x11)
+(define-crypto EVP_CIPHER_CTX_ctrl
+  (_fun _EVP_CIPHER_CTX _int _int _bytes -> (r : _int)
+        -> (check-crypto-result "EVP_CIPHER_CTX_ctrl" r)))
+
+(define-crypto EVP_CIPHER_CTX_block_size
+  (_fun _EVP_CIPHER_CTX -> _int))
+(define-crypto EVP_DecryptInit_ex
+  (_fun _EVP_CIPHER_CTX _EVP_CIPHER/null _ENGINE/null _bytes _bytes
+        -> (r : _int)
+        -> (check-crypto-result "EVP_DecryptInit_ex" r)))
+(define-crypto EVP_DecryptUpdate
+  (_fun (ctx : _EVP_CIPHER_CTX)
+        (out : (_bytes o (+ (bytes-length in) (EVP_CIPHER_CTX_block_size ctx))))
+        (outl : (_ptr o _int))
+        (in : _bytes)
+        (_int = (bytes-length in))
+        -> (r : _int)
+        -> (begin
+             (check-crypto-result "EVP_DecryptUpdate" r)
+             (subbytes out 0 outl))))
+(define-crypto EVP_DecryptUpdate/size-only
+  (_fun _EVP_CIPHER_CTX
+        (_bytes = #f)
+        (_ptr o _int)
+        (_bytes = #f)
+        _int
+        -> (r : _int)
+        -> (check-crypto-result "EVP_DecryptUpdate/size-only" r))
+  #:c-id EVP_DecryptUpdate)
+
+(define (decrypt-aes-ccm ciphertext password salt iv tag key-iter key-size)
+  (define key (PKCS5_PBKDF2_HMAC password salt key-iter (EVP_sha256) key-size))
+  (define ctx (EVP_CIPHER_CTX_new))
+  (define length-of-length
+    (cond
+      [(>= (bytes-length ciphertext) (expt 2 24)) 4]
+      [(>= (bytes-length ciphertext) (expt 2 16)) 3]
+      [else 2]))
+  (EVP_DecryptInit_ex ctx
+                      (case (* 8 key-size)
+                        [(128) (EVP_aes_128_ccm)]
+                        [(192) (EVP_aes_192_ccm)]
+                        [(256) (EVP_aes_256_ccm)]
+                        [else (error "Invalid key size")])
+                      #f #f #f)
+  (EVP_CIPHER_CTX_ctrl ctx EVP_CTRL_CCM_SET_IVLEN (- 15 length-of-length) #f)
+  (EVP_CIPHER_CTX_ctrl ctx EVP_CTRL_CCM_SET_TAG (bytes-length tag) tag)
+  (EVP_DecryptInit_ex ctx #f #f key iv)
+  (EVP_DecryptUpdate/size-only ctx (bytes-length ciphertext))
+  (begin0
+      (EVP_DecryptUpdate ctx ciphertext)
+    (EVP_CIPHER_CTX_free ctx)))
+
+(define (get-zerobin-payload url)
+  ;; The payload is formatted like [{"data": "another JSON object encoded as a
+  ;; string"}]. We are interested in the inner JSON.
+
+  (call-with-input-string
+   (hash-ref (car (call-with-input-string
+                   (car ((sxpath "//div[@id='cipherdata']/text()")
+                         (get-xexp url)))
+                   read-json))
+             'data)
+   read-json))
+
+(define (decrypt-zerobin data password)
+  (unless (and (string=? (hash-ref data 'mode) "ccm")
+               (string=? (hash-ref data 'cipher) "aes"))
+    (error "Invalid encryption scheme"))
+
+  (define (data-bytes key)
+    (string->bytes/utf-8 (hash-ref data key)))
+
+  (define tag-length (/ (hash-ref data 'ts) 8))
+  (define ct+tag (base64-decode (data-bytes 'ct)))
+  (define ciphertext-length (- (bytes-length ct+tag) tag-length))
+  (define ciphertext (subbytes ct+tag 0 ciphertext-length))
+  (define tag (subbytes ct+tag ciphertext-length))
+  (define plaintext (decrypt-aes-ccm ciphertext
+                                     password
+                                     (base64-decode (data-bytes 'salt))
+                                     (base64-decode (data-bytes 'iv))
+                                     tag
+                                     (hash-ref data 'iter)
+                                     (/ (hash-ref data 'ks) 8)))
+  (bytes->string/utf-8
+   (call-with-output-bytes
+    (lambda (out)
+      (call-with-input-bytes (base64-decode plaintext)
+                             (lambda (in) (inflate in out)))))))
+
+(define (handle-zerobin match)
+  (define id (second match))
+  (define password (string->bytes/utf-8 (third match)))
+  (define url (format "https://zerobin.hsbp.org/?~a" id))
+  (values id (post-to-coliru (decrypt-zerobin (get-zerobin-payload url)
+                                              password))))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -221,7 +366,8 @@
     (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
     (#px"https://paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)
-    (#px"http://crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)))
+    (#px"http://crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
+    (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)))
 
 (define (handle-privmsg connection target user message)
   (for ([h handlers])
