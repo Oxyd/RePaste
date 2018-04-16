@@ -92,8 +92,9 @@
   (call/ec (lambda (raw) (process document raw))))
 
 (define (handle-gist match)
+  (define url (string-append "https://" (match-url match)))
   (define raw-url (string-append "https://gist.githubusercontent.com"
-                                 (get-raw-gist-url (match-url match))))
+                                 (get-raw-gist-url url)))
   (values (match-hash match) (post-to-coliru (get raw-url))))
 
 (define (get-paste-of-code-raw hash)
@@ -116,16 +117,18 @@
     [_ ""]))
 
 (define (handle-ubuntu-paste match)
+  (define url (format "https://paste.ubuntu.com/p/~a/" (match-hash match)))
   (define content
     (strip-tags ((sxpath "//td[@class='code']/div[@class='paste']//pre")
-                 (get-xexp (match-url match)))))
+                 (get-xexp url))))
   (values (match-hash match) (post-to-coliru content)))
 
 (define (handle-crna-cc match)
   (parameterize ([current-proxy-servers (cons '("http" "212.237.3.88" 3128)
                                               (current-proxy-servers))])
+    (define url (format "http://crna.cc/~a" (match-hash match)))
     (define pre-contents ((sxpath "//div[@class='pasted']//pre")
-                          (get-xexp (match-url match))))
+                          (get-xexp url)))
     (when (empty? pre-contents)
       (raise-user-error "No paste contents found"))
     (define content (strip-tags pre-contents))
@@ -365,10 +368,10 @@
      . ,(make-simple-handler "https://la.wentropy.com/~a"))
     (#px"ix\\.io/(\\w+)" . ,(make-simple-handler "http://ix.io/~a"))
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
-    (#px"https://gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
+    (#px"gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
-    (#px"https://paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)
-    (#px"http://crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
+    (#px"paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)
+    (#px"crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)))
 
 (define (handle-privmsg connection target user message)
