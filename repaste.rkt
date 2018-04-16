@@ -67,7 +67,7 @@
 
 (define (handle-simple-pastebin match raw-format)
   (define content (get (format raw-format (match-hash match))))
-  (values (match-hash match) (post-to-coliru content)))
+  (values (match-hash match) content))
 
 (define (make-simple-handler raw-format)
   (lambda (match)
@@ -79,7 +79,7 @@
   ;; For some reason, the paste begins with "# Pastebin <hash>"
   (define stripped-content (string-join (cdr (string-split content "\n"))
                                         "\n"))
-  (values (match-hash match) (post-to-coliru stripped-content)))
+  (values (match-hash match) stripped-content))
 
 (define (get-raw-gist-url url)
   (define document (get-xexp url))
@@ -95,7 +95,7 @@
   (define url (string-append "https://" (match-url match)))
   (define raw-url (string-append "https://gist.githubusercontent.com"
                                  (get-raw-gist-url url)))
-  (values (match-hash match) (post-to-coliru (get raw-url))))
+  (values (match-hash match) (get raw-url)))
 
 (define (get-paste-of-code-raw hash)
   (hash-ref (get-json (format "https://paste.ofcode.org/~a/json" hash))
@@ -103,7 +103,7 @@
 
 (define (handle-paste-of-code match)
   (values (match-hash match)
-          (post-to-coliru (get-paste-of-code-raw (match-hash match)))))
+          (get-paste-of-code-raw (match-hash match))))
 
 (define (strip-tags html)
   (match html
@@ -121,7 +121,7 @@
   (define content
     (strip-tags ((sxpath "//td[@class='code']/div[@class='paste']//pre")
                  (get-xexp url))))
-  (values (match-hash match) (post-to-coliru content)))
+  (values (match-hash match) content))
 
 (define (handle-crna-cc match)
   (parameterize ([current-proxy-servers (cons '("http" "212.237.3.88" 3128)
@@ -132,7 +132,7 @@
     (when (empty? pre-contents)
       (raise-user-error "No paste contents found"))
     (define content (strip-tags pre-contents))
-    (values (match-hash match) (post-to-coliru content))))
+    (values (match-hash match) content)))
 
 (define-ffi-definer define-crypto libcrypto)
 (define-crypto ERR_get_error (_fun -> _long))
@@ -270,8 +270,8 @@
   (define id (second match))
   (define password (string->bytes/utf-8 (third match)))
   (define url (format "https://zerobin.hsbp.org/?~a" id))
-  (values id (post-to-coliru (decrypt-zerobin (get-zerobin-payload url)
-                                              password))))
+  (values id (decrypt-zerobin (get-zerobin-payload url)
+                              password)))
 
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
@@ -329,7 +329,8 @@
                  "paste sites that can't compile code."))
 
 (define (repaste user match handler)
-  (define-values (id result-url) (handler match))
+  (define-values (id code) (handler match))
+  (define result-url (post-to-coliru code))
   (define count (get-and-increment-nick-count user))
   (case count
     [(1) (format repaste-format-first id result-url user)]
