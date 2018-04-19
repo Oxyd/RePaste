@@ -38,6 +38,9 @@
 (define (get url)
   (call/input-url (string->url url) get-impure-port (wrap url port->string)))
 
+(define (get-bytes url)
+  (call/input-url (string->url url) get-impure-port (wrap url port->bytes)))
+
 (define (get-xexp url)
   (call/input-url (string->url url) get-impure-port (wrap url html->xexp)))
 
@@ -205,8 +208,14 @@
         -> (check-crypto-result "EVP_DecryptUpdate/size-only" r))
   #:c-id EVP_DecryptUpdate)
 
-(define (decrypt-aes-ccm ciphertext password salt iv tag key-iter key-size)
-  (define key (PKCS5_PBKDF2_HMAC password salt key-iter (EVP_sha256) key-size))
+(define-crypto SHA512
+  (_fun (in : _bytes)
+        (_int = (bytes-length in))
+        (out : (_bytes o 64))
+        -> _void
+        -> out))
+
+(define (decrypt-aes-ccm ciphertext key iv tag key-size)
   (define ctx (EVP_CIPHER_CTX_new))
   (define length-of-length
     (cond
@@ -253,13 +262,17 @@
   (define ciphertext-length (- (bytes-length ct+tag) tag-length))
   (define ciphertext (subbytes ct+tag 0 ciphertext-length))
   (define tag (subbytes ct+tag ciphertext-length))
+  (define key-size (/ (hash-ref data 'ks) 8))
+  (define key (PKCS5_PBKDF2_HMAC password
+                                 (base64-decode (data-bytes 'salt))
+                                 (hash-ref data 'iter)
+                                 (EVP_sha256)
+                                 key-size))
   (define plaintext (decrypt-aes-ccm ciphertext
-                                     password
-                                     (base64-decode (data-bytes 'salt))
+                                     key
                                      (base64-decode (data-bytes 'iv))
                                      tag
-                                     (hash-ref data 'iter)
-                                     (/ (hash-ref data 'ks) 8)))
+                                     key-size))
   (bytes->string/utf-8
    (call-with-output-bytes
     (lambda (out)
@@ -272,6 +285,55 @@
   (define url (format "https://zerobin.hsbp.org/?~a" id))
   (values id (decrypt-zerobin (get-zerobin-payload url)
                               password)))
+
+(define (bytes-map in f)
+  (define result (bytes-copy in))
+  (for ([i (in-range (bytes-length result))])
+    (define b (bytes-ref in i))
+    (bytes-set! result i (f (bytes-ref result i))))
+  result)
+
+(define (base64-url-decode in)
+  (define (f b)
+    (cond
+      [(equal? b (char->integer #\-)) (char->integer #\+)]
+      [(equal? b (char->integer #\_)) (char->integer #\/)]
+      [else b]))
+  (base64-decode (bytes-map in f)))
+
+(define (base64-url-encode in)
+  (define (f b)
+    (cond
+      [(equal? b (char->integer #\+)) (char->integer #\-)]
+      [(equal? b (char->integer #\/)) (char->integer #\_)]
+      [else b]))
+  (bytes-map (base64-encode in #"") f))
+
+(define (handle-riseup match)
+  (define seed (base64-url-decode (string->bytes/utf-8 (match-hash match))))
+  (define out (SHA512 seed))
+  (define key (subbytes out 0 (/ 256 8)))
+  (define iv (subbytes out (/ 256 8) (/ 384 8)))
+  (define ident (base64-url-encode (subbytes out (/ 384 8) (/ 512 8))))
+  (define ident* (string-trim (bytes->string/utf-8 ident) "=" #:repeat? #t))
+
+  (define payload (get-bytes (format "https://share.riseup.net/i/~a" ident*)))
+
+  ;; Payload begins with a 4-byte header of #"UP1\0" for some reason.
+  (define payload* (subbytes payload 4))
+  (define tag-length (/ 64 8))
+  (define ciphertext-length (- (bytes-length payload*) tag-length))
+  (define ciphertext (subbytes payload* 0 ciphertext-length))
+  (define tag (subbytes payload* ciphertext-length))
+  (define plaintext (decrypt-aes-ccm ciphertext key iv tag (bytes-length key)))
+
+  ;; The plaintext payload is not just the paste, though. It begins with UTF-16
+  ;; encoded JSON, followed by a null terminator (so, two null bytes), followed
+  ;; by UTF-8 encoded paste contents.
+
+  (define paste (second (string-split (bytes->string/utf-8 plaintext)
+                                      "\u0000\u0000")))
+  (values (match-hash match) paste))
 
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
@@ -373,7 +435,8 @@
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
     (#px"paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)
     (#px"crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
-    (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)))
+    (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
+    (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)))
 
 (define (handle-privmsg connection target user message)
   (for ([h handlers])
