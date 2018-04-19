@@ -430,6 +430,8 @@
     (#px"la\\.wentropy\\.com/(\\w+)"
      . ,(make-simple-handler "https://la.wentropy.com/~a"))
     (#px"ix\\.io/(\\w+)" . ,(make-simple-handler "http://ix.io/~a"))
+    (#px"paste\\.touhou\\.fm/(\\w+).cpp"
+     . ,(make-simple-handler "https://paste.touhou.fm/raw/~a"))
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
