@@ -432,6 +432,8 @@
     (#px"ix\\.io/(\\w+)" . ,(make-simple-handler "http://ix.io/~a"))
     (#px"paste\\.touhou\\.fm/(\\w+).cpp"
      . ,(make-simple-handler "https://paste.touhou.fm/raw/~a"))
+    (#px"ghostbin\\.com/paste/([a-zA-Z0-9]+)"
+     . ,(make-simple-handler "https://ghostbin.com/paste/~a/raw"))
     (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
     (#px"gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
