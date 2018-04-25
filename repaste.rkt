@@ -249,42 +249,56 @@
              'data)
    read-json))
 
-(define (decrypt-zerobin data password)
-  (unless (and (string=? (hash-ref data 'mode) "ccm")
-               (string=? (hash-ref data 'cipher) "aes"))
+(define (decrypt-sjcl data password)
+  (unless (and (string=? (hash-ref data 'mode "ccm") "ccm")
+               (string=? (hash-ref data 'cipher "aes") "aes"))
     (error "Invalid encryption scheme"))
 
   (define (data-bytes key)
     (string->bytes/utf-8 (hash-ref data key)))
 
-  (define tag-length (/ (hash-ref data 'ts) 8))
+  (define tag-length (/ (hash-ref data 'ts 64) 8))
   (define ct+tag (base64-decode (data-bytes 'ct)))
   (define ciphertext-length (- (bytes-length ct+tag) tag-length))
   (define ciphertext (subbytes ct+tag 0 ciphertext-length))
   (define tag (subbytes ct+tag ciphertext-length))
-  (define key-size (/ (hash-ref data 'ks) 8))
+  (define key-size (/ (hash-ref data 'ks 128) 8))
   (define key (PKCS5_PBKDF2_HMAC password
                                  (base64-decode (data-bytes 'salt))
-                                 (hash-ref data 'iter)
+                                 (hash-ref data 'iter 1000)
                                  (EVP_sha256)
                                  key-size))
-  (define plaintext (decrypt-aes-ccm ciphertext
-                                     key
-                                     (base64-decode (data-bytes 'iv))
-                                     tag
-                                     key-size))
-  (bytes->string/utf-8
-   (call-with-output-bytes
-    (lambda (out)
-      (call-with-input-bytes (base64-decode plaintext)
-                             (lambda (in) (inflate in out)))))))
+  (decrypt-aes-ccm ciphertext
+                   key
+                   (base64-decode (data-bytes 'iv))
+                   tag
+                   key-size))
+
+(define (inflate-bytes in)
+  (call-with-output-bytes
+   (lambda (out)
+     (call-with-input-bytes in (lambda (in) (inflate in out))))))
 
 (define (handle-zerobin match)
   (define id (second match))
   (define password (string->bytes/utf-8 (third match)))
   (define url (format "https://zerobin.hsbp.org/?~a" id))
-  (values id (decrypt-zerobin (get-zerobin-payload url)
-                              password)))
+  (define compressed-content (decrypt-sjcl (get-zerobin-payload url)
+                              password))
+  (values id (bytes->string/utf-8
+              (inflate-bytes (base64-decode compressed-content)))))
+
+(define (handle-0bin match)
+  (define id (second match))
+  (define password (string->bytes/utf-8 (third match)))
+  (define url (format "https://0bin.net/paste/~a" id))
+  (define payload
+    (call-with-input-string
+     (string-join ((sxpath "//pre[@id='paste-content']/code//text()")
+                   (get-xexp url)))
+     read-json))
+  (values id (bytes->string/utf-8
+              (base64-decode (decrypt-sjcl payload password)))))
 
 (define (bytes-map in f)
   (define result (bytes-copy in))
@@ -440,6 +454,7 @@
     (#px"paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)
     (#px"crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
+    (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_-]+)" . ,handle-0bin)
     (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)))
 
 (define (handle-privmsg connection target user message)
