@@ -448,7 +448,7 @@
      . ,(make-simple-handler "https://paste.touhou.fm/raw/~a"))
     (#px"ghostbin\\.com/paste/([a-zA-Z0-9]+)"
      . ,(make-simple-handler "https://ghostbin.com/paste/~a/raw"))
-    (#px"www\\.irccloud\\.com/pastebin/(\\w+)/" . ,handle-irccloud)
+    (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
     (#px"paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)
