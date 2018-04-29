@@ -145,6 +145,13 @@
                                "\n"))
   (values id content))
 
+(define (handle-paste-org-ru match)
+  (define id (match-hash match))
+  (define url (format "http://paste.org.ru/?~a" id))
+  (define content (strip-tags ((sxpath "//ol[@id='code']")
+                                (get-xexp url))))
+  (values id content))
+
 (define-ffi-definer define-crypto libcrypto)
 (define-crypto ERR_get_error (_fun -> _long))
 (define-crypto ERR_error_string
@@ -462,6 +469,7 @@
     (#px"paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)
     (#px"crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
     (#px"pasteall\\.org/(\\d+)" . ,handle-paste-all)
+    (#px"paste\\.org\\.ru/\\?(\\w+)" . ,handle-paste-org-ru)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
     (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_-]+)" . ,handle-0bin)
     (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)))
