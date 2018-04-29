@@ -137,6 +137,14 @@
     (define content (strip-tags pre-contents))
     (values (match-hash match) content)))
 
+(define (handle-paste-all match)
+  (define id (match-hash match))
+  (define url (format "http://pasteall.org/~a" id))
+  (define content (string-join ((sxpath "//pre[@id='originalcode']//text()")
+                                (get-xexp url))
+                               "\n"))
+  (values id content))
+
 (define-ffi-definer define-crypto libcrypto)
 (define-crypto ERR_get_error (_fun -> _long))
 (define-crypto ERR_error_string
@@ -453,6 +461,7 @@
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
     (#px"paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)
     (#px"crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
+    (#px"pasteall\\.org/(\\d+)" . ,handle-paste-all)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
     (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_-]+)" . ,handle-0bin)
     (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)))
