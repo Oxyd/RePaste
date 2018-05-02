@@ -467,6 +467,8 @@
      . ,(make-simple-handler "https://ghostbin.com/paste/~a/raw"))
     (#px"nopaste\\.chaoz-irc\\.net/view/(\\w+)"
      . ,(make-simple-handler "https://nopaste.chaoz-irc.net/view/raw/~a"))
+    (#px"pastiebin\\.com/(\\w+)"
+     . ,(make-simple-handler "https://www.pastiebin.com/v/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
