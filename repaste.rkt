@@ -21,36 +21,50 @@
 (define (filter-cr str)
   (string-replace str "\r" ""))
 
-(define (call/check-status url port f)
+(define (process-http-response url port retry f)
   (define headers (purify-port port))
   (define match (regexp-match #px"HTTP/\\d\\.\\d (\\d{3})" headers))
   (when (not match)
     (raise-user-error (format "Can't read ~a: Unexpected HTTP headers: ~a"
                               url headers)))
-  (when (not (= (string->number (second match)) 200))
-    (raise-user-error (format "Couldn't read ~a: HTTP status ~a"
-                              url (second match))))
-  (f port))
+  (define status (string->number (second match)))
+  (case status
+    [(200)
+     (f port)]
+    [(302)
+     (define location (extract-field "Location" headers))
+     (if location
+         (retry location f)
+         (raise-user-error
+          (format "Couldn't read ~a: Got HTTP 302, but no location"
+                  url)))]
+    [else
+     (raise-user-error (format "Couldn't read ~a: HTTP status ~a"
+                               url (second match)))]))
 
-(define (wrap url f)
-  (lambda (port) (call/check-status url port f)))
+(define (request url f)
+  (call/input-url (string->url url)
+                  get-impure-port
+                  (lambda (port)
+                    (process-http-response url port request f))))
 
 (define (get url)
-  (call/input-url (string->url url) get-impure-port (wrap url port->string)))
+  (request url port->string))
 
 (define (get-bytes url)
-  (call/input-url (string->url url) get-impure-port (wrap url port->bytes)))
+  (request url port->bytes))
 
 (define (get-xexp url)
-  (call/input-url (string->url url) get-impure-port (wrap url html->xexp)))
+  (request url html->xexp))
 
 (define (get-json url)
-  (call/input-url (string->url url) get-impure-port (wrap url read-json)))
+  (request url read-json))
 
 (define (post url data)
   (call/input-url (string->url url)
                   (lambda (u) (post-impure-port u data))
-                  (wrap url port->string)))
+                  (lambda (port)
+                    (process-http-response url port #f port->string))))
 
 (define jsexpr->bytes (compose string->bytes/utf-8 jsexpr->string))
 
@@ -470,7 +484,7 @@
     (#px"pastiebin\\.com/(\\w+)"
      . ,(make-simple-handler "https://www.pastiebin.com/v/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
-    (#px"gist\\.github\\.com/[^/]+/(\\w+)" . ,handle-gist)
+    (#px"gist\\.github\\.com/(:?[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
     (#px"paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)
     (#px"crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
