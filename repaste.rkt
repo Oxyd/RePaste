@@ -483,6 +483,8 @@
      . ,(make-simple-handler "https://nopaste.chaoz-irc.net/view/raw/~a"))
     (#px"pastiebin\\.com/(\\w+)"
      . ,(make-simple-handler "https://www.pastiebin.com/v/~a"))
+    (#px"pastecode\\.xyz/view/(\\w+)"
+     . ,(make-simple-handler "https://pastecode.xyz/view/raw/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(:?[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
