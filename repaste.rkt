@@ -457,6 +457,8 @@
      . ,(make-simple-handler "https://paste.pound-python.org/raw/~a/"))
     (#px"dpaste\\.com/(\\w+)"
      . ,(make-simple-handler "http://dpaste.com/~a.txt"))
+    (#px"dpaste\\.de/(\\w+)"
+     . ,(make-simple-handler "https://dpaste.de/~a/raw"))
     (#px"paste\\.debian\\.net/(\\d+)/"
      . ,(make-simple-handler "http://paste.debian.net/plain/~a"))
     (#px"paste\\.debian\\.net/hidden/(\\w+)/"
