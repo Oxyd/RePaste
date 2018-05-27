@@ -497,7 +497,7 @@
     (#px"pasteall\\.org/(\\d+)" . ,handle-paste-all)
     (#px"paste\\.org\\.ru/\\?(\\w+)" . ,handle-paste-org-ru)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
-    (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_-]+)" . ,handle-0bin)
+    (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_+-]+)" . ,handle-0bin)
     (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)))
 
 (define (handle-privmsg connection target user message)
