@@ -489,6 +489,8 @@
      . ,(make-simple-handler "https://pastecode.xyz/view/raw/~a"))
     (#px"paste\\.suut\\.in/(\\w+)"
      . ,(make-simple-handler "http://paste.suut.in/raw/~a"))
+    (#px"p\\.teknik\\.io/([a-zA-Z0-9]+)"
+     . ,(make-simple-handler "https://p.teknik.io/Raw/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(:?[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
