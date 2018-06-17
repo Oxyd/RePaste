@@ -494,7 +494,7 @@
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(:?[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
-    (#px"paste\\.ubuntu\\.com/p/(\\w+)/" . ,handle-ubuntu-paste)
+    (#px"paste\\.ubuntu\\.com/p/(\\w+)" . ,handle-ubuntu-paste)
     (#px"crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
     (#px"pasteall\\.org/(\\d+)" . ,handle-paste-all)
     (#px"paste\\.org\\.ru/\\?(\\w+)" . ,handle-paste-org-ru)
