@@ -378,6 +378,25 @@
                                       "\u0000\u0000")))
   (values (match-hash match) paste))
 
+(define (handle-paste-kde-org m)
+  (define url (string-append "https://" (match-url m)))
+  (define (raw-anchor? a)
+    (match a
+      [(list 'a (list '@ _ ...) "Raw") #t]
+      [_ #f]))
+  (define raw-url-anchor
+    (let ([anchors (filter raw-anchor?
+                           ((sxpath "//a[@class='btn btn-success']")
+                            (get-xexp url)))])
+      (unless (eq? (cdr anchors) null)
+        (raise-user-error "Found more than one raw anchor"))
+      (first anchors)))
+  (define raw-url
+    (match raw-url-anchor
+      [(list 'a (list-no-order '@ (list 'href href) _ ...) _ ...)
+       href]))
+  (values (match-hash m) (get raw-url)))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -500,7 +519,8 @@
     (#px"paste\\.org\\.ru/\\?(\\w+)" . ,handle-paste-org-ru)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
     (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_+-]+)" . ,handle-0bin)
-    (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)))
+    (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)
+    (#px"paste\\.kde\\.org/(\\w+)" . ,handle-paste-kde-org)))
 
 (define (handle-privmsg connection target user message)
   (for ([h handlers])
