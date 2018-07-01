@@ -511,7 +511,7 @@
     (#px"p\\.teknik\\.io/([a-zA-Z0-9]+)"
      . ,(make-simple-handler "https://p.teknik.io/Raw/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
-    (#px"gist\\.github\\.com/(:?[^/]+/)?(\\w+)" . ,handle-gist)
+    (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
     (#px"paste\\.ubuntu\\.com/p/(\\w+)" . ,handle-ubuntu-paste)
     (#px"crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
