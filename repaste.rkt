@@ -77,7 +77,7 @@
            (make-hash `((cmd . ,compile-flags)
                         (src . ,code))))))
   (string-append "http://coliru.stacked-crooked.com/a/"
-                 (string-trim result-hash))) ; result-hash has an \n at the end
+                 (first (string-split result-hash #rx"[\r\n]"))))
 
 (define (match-url m) (first m))
 (define (match-hash m) (second m))
