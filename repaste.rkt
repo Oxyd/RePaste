@@ -530,7 +530,10 @@
     (when match
       (thread
        (lambda ()
-         (send-privmsg target (repaste user match handler)))))))
+         (dynamic-wind
+           void
+           (lambda () (send-privmsg target (repaste user match handler)))
+           (lambda () (collect-garbage))))))))
 
 (define irc-thread #f)
 (define (send-privmsg channel message)
