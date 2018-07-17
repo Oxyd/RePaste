@@ -60,9 +60,9 @@
 (define (get-json url)
   (request url read-json))
 
-(define (post url data)
+(define (post url data [header null])
   (call/input-url (string->url url)
-                  (lambda (u) (post-impure-port u data))
+                  (lambda (u) (post-impure-port u data header))
                   (lambda (port)
                     (process-http-response url port #f port->string))))
 
@@ -75,7 +75,8 @@
     (post "http://coliru.stacked-crooked.com/share"
           (jsexpr->bytes
            (make-hash `((cmd . ,compile-flags)
-                        (src . ,code))))))
+                        (src . ,(filter-cr code)))))
+          (list "Content-Type: text/plain;charset=UTF-8")))
   (string-append "http://coliru.stacked-crooked.com/a/"
                  (first (string-split result-hash #rx"[\r\n]"))))
 
