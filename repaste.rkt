@@ -481,6 +481,8 @@
      . ,(make-simple-handler "https://dpaste.de/~a/raw"))
     (#px"paste\\.debian\\.net/(\\d+)/"
      . ,(make-simple-handler "http://paste.debian.net/plain/~a"))
+    (#px"paste\\.debian\\.net/plain/(\\d+)"
+     . ,(make-simple-handler "http://paste.debian.net/plain/~a"))
     (#px"paste\\.debian\\.net/hidden/(\\w+)/"
      . ,(make-simple-handler "http://paste.debian.net/plainh/~a"))
     (#px"ptpb\\.pw/([^/&# ]+)"
