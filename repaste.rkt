@@ -511,6 +511,10 @@
      . ,(make-simple-handler "http://paste.suut.in/raw/~a"))
     (#px"p\\.teknik\\.io/([a-zA-Z0-9]+)"
      . ,(make-simple-handler "https://p.teknik.io/Raw/~a"))
+    (#px"netpipe\\.ca/paste/paste\\.php\\?id=(\\d+)"
+     . ,(make-simple-handler "http://www.netpipe.ca/paste/paste.php?raw&id=~a"))
+    (#px"pb\\.lericson\\.se/p/([a-zA-Z0-9]+)/"
+     . ,(make-simple-handler "http://pb.lericson.se/p/~a/text/"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
