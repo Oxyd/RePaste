@@ -141,8 +141,17 @@
                  (get-xexp url))))
   (values (match-hash match) content))
 
+(define (choose-proxy)
+  (define json (get-json (string-append "https://api.getproxylist.com/proxy"
+                                        "?protocol[]=http"
+                                        "&maxConnectTime=1"
+                                        "&maxSecondsToFirstByte=1")))
+  (list (hash-ref json 'protocol)
+        (hash-ref json 'ip)
+        (hash-ref json 'port)))
+
 (define (handle-crna-cc match)
-  (parameterize ([current-proxy-servers (cons '("http" "212.237.3.88" 3128)
+  (parameterize ([current-proxy-servers (cons (choose-proxy)
                                               (current-proxy-servers))])
     (define url (format "http://crna.cc/~a" (match-hash match)))
     (define pre-contents ((sxpath "//div[@class='pasted']//pre")
