@@ -407,6 +407,12 @@
        href]))
   (values (match-hash m) (get raw-url)))
 
+(define (handle-kopy-io match)
+  (values (match-hash match)
+          (hash-ref (get-json (format "https://kopy.io/documents/~a"
+                                      (match-hash match)))
+                    'data)))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -536,7 +542,8 @@
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
     (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_+-]+)" . ,handle-0bin)
     (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)
-    (#px"paste\\.kde\\.org/(\\w+)" . ,handle-paste-kde-org)))
+    (#px"paste\\.kde\\.org/(\\w+)" . ,handle-paste-kde-org)
+    (#px"kopy\\.io/([a-zA-Z0-9]+)" . ,handle-kopy-io)))
 
 (define (handle-privmsg connection target user message)
   (for ([h handlers])
