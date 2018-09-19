@@ -134,6 +134,14 @@
      html]
     [_ ""]))
 
+(define (json-path jsexpr path)
+  (if (empty? path)
+      jsexpr
+      (if (hash-has-key? jsexpr (car path))
+          (json-path (hash-ref jsexpr (car path))
+                     (cdr path))
+          #f)))
+
 (define (handle-ubuntu-paste match)
   (define url (format "https://paste.ubuntu.com/p/~a/" (match-hash match)))
   (define content
@@ -413,6 +421,32 @@
                                       (match-hash match)))
                     'data)))
 
+(define (handle-codeshare-io match)
+  ;; codeshare.io is a piece of junk because it ends in .io. It likes to timeout
+  ;; often, usually giving some other reply than what we're expecting. We'll
+  ;; simply retry a few times if that happens.
+
+  (let retry ([attempt 5])
+    (when (= attempt 0)
+      (raise-user-error "codeshare.io failed too many times"))
+
+    (define bootstrap
+      (string->jsexpr
+       (string-join ((sxpath "//script[@id='bootstrapData']/text()")
+                     (get-xexp (format "https://codeshare.io/~a"
+                                       (match-hash match)))))))
+    (cond
+      [(>= (length bootstrap) 2)
+       (define value (json-path (second bootstrap)
+                                '(response codeshare codeCheckpoint value)))
+       (cond
+         [(list? value)
+          (values (match-hash match) (string-join value))]
+         [else
+          (retry (sub1 attempt))])]
+      [else
+       (retry (sub1 attempt))])))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -543,7 +577,8 @@
     (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_+-]+)" . ,handle-0bin)
     (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)
     (#px"paste\\.kde\\.org/(\\w+)" . ,handle-paste-kde-org)
-    (#px"kopy\\.io/([a-zA-Z0-9]+)" . ,handle-kopy-io)))
+    (#px"kopy\\.io/([a-zA-Z0-9]+)" . ,handle-kopy-io)
+    (#px"codeshare\\.io/([a-zA-Z0-9]+)" . ,handle-codeshare-io)))
 
 (define (handle-privmsg connection target user message)
   (for ([h handlers])
