@@ -568,6 +568,8 @@
      . ,(make-simple-handler "http://pb.lericson.se/p/~a/text/"))
     (#px"qbin\\.io/([a-zA-Z0-9-]+)"
      . ,(make-simple-handler "https://qbin.io/~a/raw"))
+    (#px"pastebin\\.osuosl\\.org/(\\d+)"
+     . ,(make-simple-handler "https://pastebin.osuosl.org/~a/raw/"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
