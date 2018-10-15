@@ -570,6 +570,8 @@
      . ,(make-simple-handler "https://qbin.io/~a/raw"))
     (#px"pastebin\\.osuosl\\.org/(\\d+)"
      . ,(make-simple-handler "https://pastebin.osuosl.org/~a/raw/"))
+    (#px"alarmpi\\.no-ip\\.org/kamokan/(\\w+)\\?cpp"
+     . ,(make-simple-handler "https://alarmpi.no-ip.org/kamokan/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
