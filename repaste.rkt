@@ -21,7 +21,7 @@
 (define (filter-cr str)
   (string-replace str "\r" ""))
 
-(define (process-http-response url port retry f)
+(define (process-http-response url port retry handle)
   (define headers (purify-port port))
   (define match (regexp-match #px"HTTP/\\d\\.\\d (\\d{3})" headers))
   (when (not match)
@@ -30,11 +30,11 @@
   (define status (string->number (second match)))
   (case status
     [(200)
-     (f port)]
+     (handle port)]
     [(302)
      (define location (extract-field "Location" headers))
      (if location
-         (retry location f)
+         (retry location handle)
          (raise-user-error
           (format "Couldn't read ~a: Got HTTP 302, but no location"
                   url)))]
@@ -42,43 +42,47 @@
      (raise-user-error (format "Couldn't read ~a: HTTP status ~a"
                                url (second match)))]))
 
-(define (request url f)
+(define (request url connect handle)
   (call/input-url (string->url url)
-                  get-impure-port
+                  connect
                   (lambda (port)
-                    (process-http-response url port request f))))
+                    (process-http-response url port request handle))))
 
 (define (get url)
-  (request url port->string))
+  (request url get-impure-port port->string))
 
 (define (get-bytes url)
-  (request url port->bytes))
+  (request url get-impure-port port->bytes))
 
 (define (get-xexp url)
-  (request url html->xexp))
+  (request url get-impure-port html->xexp))
 
 (define (get-json url)
-  (request url read-json))
+  (request url get-impure-port read-json))
 
 (define (post url data [header null])
-  (call/input-url (string->url url)
-                  (lambda (u) (post-impure-port u data header))
-                  (lambda (port)
-                    (process-http-response url port #f port->string))))
+  (request url
+           (lambda (u) (post-impure-port u data header))
+           port->string))
+
+(define (post-json url data)
+  (request url
+           (lambda (u) (post-impure-port u data))
+           read-json))
 
 (define jsexpr->bytes (compose string->bytes/utf-8 jsexpr->string))
 
-(define compile-flags
-  "g++ -std=c++17 -O2 -Wall -Wextra -pedantic -pthread main.cpp && ./a.out")
-(define (post-to-coliru code)
-  (define result-hash
-    (post "http://coliru.stacked-crooked.com/share"
-          (jsexpr->bytes
-           (make-hash `((cmd . ,compile-flags)
-                        (src . ,(filter-cr code)))))
-          (list "Content-Type: text/plain;charset=UTF-8")))
-  (string-append "http://coliru.stacked-crooked.com/a/"
-                 (first (string-split result-hash #rx"[\r\n]"))))
+(define (post-to-wandbox code)
+  (define result-json
+    (post-json "https://wandbox.org/api/compile.json"
+               (jsexpr->bytes
+                (make-hash
+                 `((compiler . "gcc-head")
+                   (code . ,code)
+                   (options . "c++2a,warning,optimize,boost-nothing-gcc-head")
+                   (compiler-option-raw . "-pedantic\n-pthread")
+                   (save . #t))))))
+  (hash-ref result-json 'url))
 
 (define (match-url m) (first m))
 (define (match-hash m) (second m))
@@ -504,7 +508,7 @@
 
 (define (repaste user match handler)
   (define-values (id code) (handler match))
-  (define result-url (post-to-coliru code))
+  (define result-url (post-to-wandbox code))
   (define count (get-and-increment-nick-count user))
   (case count
     [(1) (format repaste-format-first id result-url user)]
