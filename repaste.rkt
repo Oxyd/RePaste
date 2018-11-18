@@ -21,7 +21,7 @@
 (define (filter-cr str)
   (string-replace str "\r" ""))
 
-(define (process-http-response url port retry handle)
+(define (process-http-response url port retry connect handle)
   (define headers (purify-port port))
   (define match (regexp-match #px"HTTP/\\d\\.\\d (\\d{3})" headers))
   (when (not match)
@@ -34,7 +34,7 @@
     [(302)
      (define location (extract-field "Location" headers))
      (if location
-         (retry location handle)
+         (retry location connect handle)
          (raise-user-error
           (format "Couldn't read ~a: Got HTTP 302, but no location"
                   url)))]
@@ -46,7 +46,7 @@
   (call/input-url (string->url url)
                   connect
                   (lambda (port)
-                    (process-http-response url port request handle))))
+                    (process-http-response url port request connect handle))))
 
 (define (get url)
   (request url get-impure-port port->string))
