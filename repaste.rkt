@@ -451,6 +451,21 @@
       [else
        (retry (sub1 attempt))])))
 
+(define (remove-bom s)
+  (if (and (> (string-length s) 0)
+           (char=? (string-ref s 0) #\uFEFF))
+      (substring s 1)
+      s))
+
+(define (handle-tail-ml match)
+  (values (match-hash match)
+          (remove-bom
+           (string-join (map (λ (line) (string-trim line #:left? #f))
+                             ((sxpath "//code[@id='p']/text()")
+                              (get-xexp (string-append "https://"
+                                                       (match-url match)))))
+                        "\n"))))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -588,7 +603,9 @@
     (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)
     (#px"paste\\.kde\\.org/(\\w+)" . ,handle-paste-kde-org)
     (#px"kopy\\.io/([a-zA-Z0-9]+)" . ,handle-kopy-io)
-    (#px"codeshare\\.io/([a-zA-Z0-9]+)" . ,handle-codeshare-io)))
+    (#px"codeshare\\.io/([a-zA-Z0-9]+)" . ,handle-codeshare-io)
+    (#px"tail\\.ml/p/([a-zA-Z0-9]+)\\.cpp" . ,handle-tail-ml)
+    ))
 
 (define (handle-privmsg connection target user message)
   (for ([h handlers])
