@@ -591,6 +591,8 @@
      . ,(make-simple-handler "https://pastebin.osuosl.org/~a/raw/"))
     (#px"alarmpi\\.no-ip\\.org/kamokan/(\\w+)\\?cpp"
      . ,(make-simple-handler "https://alarmpi.no-ip.org/kamokan/~a"))
+    (#px"paste\\.rs/([a-zA-Z0-9]+).*"
+     . ,(make-simple-handler "https://paste.rs/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
