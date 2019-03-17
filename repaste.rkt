@@ -593,6 +593,8 @@
      . ,(make-simple-handler "https://alarmpi.no-ip.org/kamokan/~a"))
     (#px"paste\\.rs/([a-zA-Z0-9]+).*"
      . ,(make-simple-handler "https://paste.rs/~a"))
+    (#px"sprunge\\.us/([a-zA-Z0-9]+)"
+     . ,(make-simple-handler "http://sprunge.us/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
