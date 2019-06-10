@@ -91,7 +91,7 @@
                 (make-hash
                  `((compiler . "gcc-head")
                    (code . ,(paste-contents-main-file-contents contents))
-                   (codes . ,(for/list ([file (paste-contents-other-files contents)])
+                   (codes . ,(for/list ([file (in-list (paste-contents-other-files contents))])
                                (make-hash
                                 `((file . ,(named-file-name file))
                                   (code . ,(named-file-contents file))))))
@@ -234,7 +234,7 @@
                           (get (box-raw-url (first file-boxes))))]
     [else
      (define files
-       (for/list ([box file-boxes])
+       (for/list ([box (in-list file-boxes)])
          (named-file (first ((sxpath "//h2/span/text()") box))
                      (get (box-raw-url box)))))
      (make-paste-contents (match-hash m) "" files)]))
@@ -666,7 +666,7 @@
     ))
 
 (define (handle-privmsg connection target user message)
-  (for ([h handlers])
+  (for ([h (in-list handlers)])
     (define pattern (car h))
     (define handler (cdr h))
     (define match (regexp-match pattern (filter-cr message)))
