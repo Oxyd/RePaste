@@ -188,6 +188,13 @@
                                 (get-xexp url))))
   (values id content))
 
+(define (handle-paste-org match)
+  (define id (match-hash match))
+  (values id
+          (string-join ((sxpath "//textarea/text()")
+                        (get-xexp (format "https://www.paste.org/~a" id)))
+                       "")))
+
 (define-ffi-definer define-crypto libcrypto)
 (define-crypto ERR_get_error (_fun -> _long))
 (define-crypto ERR_error_string
@@ -603,6 +610,7 @@
     (#px"crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
     (#px"pasteall\\.org/(\\d+)" . ,handle-paste-all)
     (#px"paste\\.org\\.ru/\\?(\\w+)" . ,handle-paste-org-ru)
+    (#px"paste\\.org/(\\d+)" . ,handle-paste-org)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
     (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_+-]+)" . ,handle-0bin)
     (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)
