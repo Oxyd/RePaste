@@ -72,15 +72,36 @@
 
 (define jsexpr->bytes (compose string->bytes/utf-8 jsexpr->string))
 
-(define (post-to-wandbox code)
+(struct named-file
+  (name contents))
+
+(struct paste-contents
+  (id main-file-contents other-files))
+
+(define (make-paste-contents id main-file-contents [other-files '()])
+  (paste-contents id main-file-contents other-files))
+
+(define (post-to-wandbox contents)
+  (define files-to-compile
+    (filter (λ (file) (not (string-contains? (named-file-name file) ".h")))
+            (paste-contents-other-files contents)))
   (define result-json
     (post-json "https://wandbox.org/api/compile.json"
                (jsexpr->bytes
                 (make-hash
                  `((compiler . "gcc-head")
-                   (code . ,code)
+                   (code . ,(paste-contents-main-file-contents contents))
+                   (codes . ,(for/list ([file (paste-contents-other-files contents)])
+                               (make-hash
+                                `((file . ,(named-file-name file))
+                                  (code . ,(named-file-contents file))))))
                    (options . "c++2a,warning,optimize,boost-nothing-gcc-head")
-                   (compiler-option-raw . "-pedantic\n-pthread")
+                   (compiler-option-raw . ,(string-join
+                                            (append '("-pedantic" "-pthread")
+                                                    (if (empty? files-to-compile)
+                                                        '()
+                                                        (cons "-xc++" (map named-file-name files-to-compile))))
+                                            "\n"))
                    (save . #t))))))
   (hash-ref result-json 'url))
 
@@ -89,7 +110,7 @@
 
 (define (handle-simple-pastebin match raw-format)
   (define content (get (format raw-format (match-hash match))))
-  (values (match-hash match) content))
+  (make-paste-contents (match-hash match) content))
 
 (define (make-simple-handler raw-format)
   (lambda (match)
@@ -101,7 +122,7 @@
   ;; For some reason, the paste begins with "# Pastebin <hash>"
   (define stripped-content (string-join (cdr (string-split content "\n"))
                                         "\n"))
-  (values (match-hash match) stripped-content))
+  (make-paste-contents (match-hash match) stripped-content))
 
 (define (get-raw-gist-url url)
   (define document (get-xexp url))
@@ -117,15 +138,15 @@
   (define url (string-append "https://" (match-url match)))
   (define raw-url (string-append "https://gist.githubusercontent.com"
                                  (get-raw-gist-url url)))
-  (values (match-hash match) (get raw-url)))
+  (make-paste-contents (match-hash match) (get raw-url)))
 
 (define (get-paste-of-code-raw hash)
   (hash-ref (get-json (format "https://paste.ofcode.org/~a/json" hash))
             'code))
 
 (define (handle-paste-of-code match)
-  (values (match-hash match)
-          (get-paste-of-code-raw (match-hash match))))
+  (make-paste-contents (match-hash match)
+                       (get-paste-of-code-raw (match-hash match))))
 
 (define (strip-tags html)
   (match html
@@ -151,7 +172,7 @@
   (define content
     (strip-tags ((sxpath "//td[@class='code']/div[@class='paste']//pre")
                  (get-xexp url))))
-  (values (match-hash match) content))
+  (make-paste-contents (match-hash match) content))
 
 (define (choose-proxy)
   (define json (get-json (string-append "https://api.getproxylist.com/proxy"
@@ -171,7 +192,7 @@
     (when (empty? pre-contents)
       (raise-user-error "No paste contents found"))
     (define content (strip-tags pre-contents))
-    (values (match-hash match) content)))
+    (make-paste-contents (match-hash match) content)))
 
 (define (handle-paste-all match)
   (define id (match-hash match))
@@ -179,21 +200,44 @@
   (define content (string-join ((sxpath "//pre[@id='originalcode']//text()")
                                 (get-xexp url))
                                "\n"))
-  (values id content))
+  (make-paste-contents id content))
 
 (define (handle-paste-org-ru match)
   (define id (match-hash match))
   (define url (format "http://paste.org.ru/?~a" id))
   (define content (strip-tags ((sxpath "//ol[@id='code']")
                                 (get-xexp url))))
-  (values id content))
+  (make-paste-contents id content))
 
 (define (handle-paste-org match)
   (define id (match-hash match))
-  (values id
-          (string-join ((sxpath "//textarea/text()")
-                        (get-xexp (format "https://www.paste.org/~a" id)))
-                       "")))
+  (make-paste-contents id
+                       (string-join ((sxpath "//textarea/text()")
+                                     (get-xexp (format "https://www.paste.org/~a" id)))
+                                    "")))
+
+(define (handle-paste-gg m)
+  (define main-xexp (get-xexp (string-append "https://" (match-url m))))
+  (define file-boxes ((sxpath "//div[@class='box']") main-xexp))
+  (define (box-raw-url xexp)
+    (define relative (match (first ((sxpath "//a") xexp))
+                       [`(a ,(list-no-order '@ `(href ,url) _ ...) ,_) url]))
+    (string-append "https://paste.gg"
+                   ;; XXX: This should probably use some actual HTML entity
+                   ;; decoder instead of string-replace.
+                   (string-replace relative "&#x2F;" "/")))
+  (cond
+    [(empty? file-boxes)
+     (raise-user-error "No files in paste")]
+    [(= (length file-boxes) 1)
+     (make-paste-contents (match-hash m)
+                          (get (box-raw-url (first file-boxes))))]
+    [else
+     (define files
+       (for/list ([box file-boxes])
+         (named-file (first ((sxpath "//h2/span/text()") box))
+                     (get (box-raw-url box)))))
+     (make-paste-contents (match-hash m) "" files)]))
 
 (define-ffi-definer define-crypto libcrypto)
 (define-crypto ERR_get_error (_fun -> _long))
@@ -343,8 +387,8 @@
   (define url (format "https://zerobin.hsbp.org/?~a" id))
   (define compressed-content (decrypt-sjcl (get-zerobin-payload url)
                               password))
-  (values id (bytes->string/utf-8
-              (inflate-bytes (base64-decode compressed-content)))))
+  (make-paste-contents id (bytes->string/utf-8
+                           (inflate-bytes (base64-decode compressed-content)))))
 
 (define (handle-0bin match)
   (define id (second match))
@@ -355,8 +399,8 @@
      (string-join ((sxpath "//pre[@id='paste-content']/code//text()")
                    (get-xexp url)))
      read-json))
-  (values id (bytes->string/utf-8
-              (base64-decode (decrypt-sjcl payload password)))))
+  (make-paste-contents id (bytes->string/utf-8
+                           (base64-decode (decrypt-sjcl payload password)))))
 
 (define (bytes-map in f)
   (define result (bytes-copy in))
@@ -405,7 +449,7 @@
 
   (define paste (second (string-split (bytes->string/utf-8 plaintext)
                                       "\u0000\u0000")))
-  (values (match-hash match) paste))
+  (make-paste-contents (match-hash match) paste))
 
 (define (handle-paste-kde-org m)
   (define url (string-append "https://" (match-url m)))
@@ -424,13 +468,13 @@
     (match raw-url-anchor
       [(list 'a (list-no-order '@ (list 'href href) _ ...) _ ...)
        href]))
-  (values (match-hash m) (get raw-url)))
+  (make-paste-contents (match-hash m) (get raw-url)))
 
 (define (handle-kopy-io match)
-  (values (match-hash match)
-          (hash-ref (get-json (format "https://kopy.io/documents/~a"
-                                      (match-hash match)))
-                    'data)))
+  (make-paste-contents (match-hash match)
+                       (hash-ref (get-json (format "https://kopy.io/documents/~a"
+                                                   (match-hash match)))
+                                 'data)))
 
 (define (handle-codeshare-io match)
   ;; codeshare.io is a piece of junk because it ends in .io. It likes to timeout
@@ -452,7 +496,7 @@
                                 '(response codeshare codeCheckpoint value)))
        (cond
          [(list? value)
-          (values (match-hash match) (string-join value))]
+          (make-paste-contents (match-hash match) (string-join value))]
          [else
           (retry (sub1 attempt))])]
       [else
@@ -465,13 +509,13 @@
       s))
 
 (define (handle-tail-ml match)
-  (values (match-hash match)
-          (remove-bom
-           (string-join (map (λ (line) (string-trim line #:left? #f))
-                             ((sxpath "//code[@id='p']/text()")
-                              (get-xexp (string-append "https://"
-                                                       (match-url match)))))
-                        "\n"))))
+  (make-paste-contents (match-hash match)
+                       (remove-bom
+                        (string-join (map (λ (line) (string-trim line #:left? #f))
+                                          ((sxpath "//code[@id='p']/text()")
+                                           (get-xexp (string-append "https://"
+                                                                    (match-url match)))))
+                                     "\n"))))
 
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
@@ -529,13 +573,13 @@
                  "paste sites that can't compile code."))
 
 (define (repaste user match handler)
-  (define-values (id code) (handler match))
-  (define result-url (post-to-wandbox code))
+  (define contents (handler match))
+  (define result-url (post-to-wandbox contents))
   (define count (get-and-increment-nick-count user))
   (case count
-    [(1) (format repaste-format-first id result-url user)]
+    [(1) (format repaste-format-first (paste-contents-id contents) result-url user)]
     [else (format repaste-format-subsequent
-                  id result-url user (number->english/ordinal count))]))
+                  (paste-contents-id contents) result-url user (number->english/ordinal count))]))
 
 (define handlers
   `((#px"pastebin\\.com/(?:raw/)?(\\w+)"
@@ -611,6 +655,7 @@
     (#px"pasteall\\.org/(\\d+)" . ,handle-paste-all)
     (#px"paste\\.org\\.ru/\\?(\\w+)" . ,handle-paste-org-ru)
     (#px"paste\\.org/(\\d+)" . ,handle-paste-org)
+    (#px"paste\\.gg/p/[^/]+/([a-zA-Z0-9]+)" . ,handle-paste-gg)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
     (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_+-]+)" . ,handle-0bin)
     (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)
