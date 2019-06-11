@@ -21,32 +21,43 @@
 (define (filter-cr str)
   (string-replace str "\r" ""))
 
-(define (process-http-response url port retry connect handle)
+(define (extract-status-and-headers port)
   (define headers (purify-port port))
   (define match (regexp-match #px"HTTP/\\d\\.\\d (\\d{3})" headers))
   (when (not match)
     (raise-user-error (format "Can't read ~a: Unexpected HTTP headers: ~a"
                               url headers)))
-  (define status (string->number (second match)))
-  (case status
-    [(200)
-     (handle port)]
-    [(302)
-     (define location (extract-field "Location" headers))
-     (if location
-         (retry location connect handle)
-         (raise-user-error
-          (format "Couldn't read ~a: Got HTTP 302, but no location"
-                  url)))]
-    [else
-     (raise-user-error (format "Couldn't read ~a: HTTP status ~a"
-                               url (second match)))]))
+  (values (string->number (second match)) headers))
+
+(define (extract-location headers)
+  (cond
+    [(extract-field "Location" headers) => identity]
+    [else (raise-user-error "Got HTTP 302, but no location")]))
 
 (define (request url connect handle)
+  (define (process-http-response url port retry connect handle)
+    (define-values (status headers) (extract-status-and-headers port))
+    (case status
+      [(200)
+       (handle port)]
+      [(301 302)
+       (retry (extract-location headers) connect handle)]
+      [else
+       (raise-user-error (format "Couldn't read ~a: HTTP status ~a"
+                                 url status))]))
   (call/input-url (string->url url)
                   connect
                   (lambda (port)
                     (process-http-response url port request connect handle))))
+
+(define (get-redirect-target url)
+  (call/input-url (string->url url)
+                  get-impure-port
+                  (λ (port)
+                    (define-values (status headers) (extract-status-and-headers port))
+                    (case status
+                      [(301 302) (extract-location headers)]
+                      [else #f]))))
 
 (define (get url)
   (request url get-impure-port port->string))
@@ -572,14 +583,18 @@
   (string-append "Paste ~a was moved to ~a ~a, for the ~a time, do not use "
                  "paste sites that can't compile code."))
 
-(define (repaste user match handler)
+(define (repaste user match handler [id-override #f])
   (define contents (handler match))
   (define result-url (post-to-wandbox contents))
   (define count (get-and-increment-nick-count user))
+  (define id
+    (cond
+      [id-override => identity]
+      [else (paste-contents-id contents)]))
   (case count
-    [(1) (format repaste-format-first (paste-contents-id contents) result-url user)]
+    [(1) (format repaste-format-first id result-url user)]
     [else (format repaste-format-subsequent
-                  (paste-contents-id contents) result-url user (number->english/ordinal count))]))
+                  id result-url user (number->english/ordinal count))]))
 
 (define handlers
   `((#px"pastebin\\.com/(?:raw/)?(\\w+)"
@@ -665,18 +680,39 @@
     (#px"tail\\.ml/p/([a-zA-Z0-9]+)\\.cpp" . ,handle-tail-ml)
     ))
 
-(define (handle-privmsg connection target user message)
-  (for ([h (in-list handlers)])
-    (define pattern (car h))
-    (define handler (cdr h))
-    (define match (regexp-match pattern (filter-cr message)))
-    (when match
-      (thread
-       (lambda ()
-         (dynamic-wind
-           void
-           (lambda () (send-privmsg target (repaste user match handler)))
-           (lambda () (collect-garbage))))))))
+(define shorteners
+  '(#px"bit\\.ly/([a-zA-Z0-9]+)"
+    #px"tinyurl\\.com/([a-zA-Z0-9-]+)"
+    ))
+
+(define (try-handle-message target user message [id-override #f])
+  (define msg (filter-cr message))
+  (let/ec return
+    (for ([h (in-list handlers)])
+      (define pattern (car h))
+      (define handler (cdr h))
+      (define match (regexp-match pattern msg))
+      (when match
+        (thread
+         (lambda ()
+           (dynamic-wind
+             void
+             (lambda () (send-privmsg target (repaste user match handler id-override)))
+             (lambda () (collect-garbage)))))
+        (return #t))))
+  #f)
+
+(define (handle-privmsg target user message)
+  (unless (try-handle-message target user message)
+    (define msg (filter-cr message))
+    (let/ec return
+      (for ([shortener (in-list shorteners)])
+        (cond
+          [(regexp-match shortener msg)
+           => (λ (match)
+                (define link-target (get-redirect-target (string-append "https://" (first match))))
+                (when (try-handle-message target user link-target (second match))
+                  (return (void))))])))))
 
 (define irc-thread #f)
 (define (send-privmsg channel message)
@@ -750,7 +786,7 @@
                (define user (extract-nick prefix))
                (when (and (string-ci=? target (config-value 'channel))
                           (not (ignore? user)))
-                 (handle-privmsg connection target user body))]
+                 (handle-privmsg target user body))]
               [(irc-message _ "PONG" _ _)
                (set! last-pong-received (current-milliseconds))]
               [_ '()])
