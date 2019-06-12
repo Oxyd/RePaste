@@ -664,6 +664,7 @@
     (#px"wklejto\\.pl/(\\d+)" . ,(make-simple-handler "http://wklejto.pl/txt~a"))
     (#px"del\\.dog/(\\w+)" . ,(make-simple-handler "https://del.dog/raw/~a"))
     (#px"paste\\.opensuse\\.org/view/+(\\d+)" . ,(make-simple-handler "http://paste.opensuse.org/view/raw/~a"))
+    (#px"paste\\.xinu\\.at/(\\w+)" . ,(make-simple-handler "https://paste.xinu.at/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
