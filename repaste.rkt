@@ -661,6 +661,7 @@
      . ,(make-simple-handler "https://paste.rs/~a"))
     (#px"sprunge\\.us/([a-zA-Z0-9]+)"
      . ,(make-simple-handler "http://sprunge.us/~a"))
+    (#px"wklejto\\.pl/(\\d+)" . ,(make-simple-handler "http://wklejto.pl/txt~a"))
     (#px"del\\.dog/(\\w+)" . ,(make-simple-handler "https://del.dog/raw/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
