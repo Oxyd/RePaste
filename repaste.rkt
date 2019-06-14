@@ -18,6 +18,8 @@
 (define (config-value key)
   (hash-ref config key #f))
 
+(define std-header (file->string "std.hpp"))
+
 (define (filter-cr str)
   (string-replace str "\r" ""))
 
@@ -87,10 +89,19 @@
   (name contents))
 
 (struct paste-contents
-  (id main-file-contents other-files))
+  (main-file-contents other-files))
 
-(define (make-paste-contents id main-file-contents [other-files '()])
-  (paste-contents id main-file-contents other-files))
+(struct repaste-result
+  (id contents))
+
+(define (make-paste-contents main-file-contents [other-files '()])
+  (paste-contents main-file-contents other-files))
+
+(define (make-repaste-result id main-file-contents [other-files '()])
+  (repaste-result id (make-paste-contents main-file-contents other-files)))
+
+(struct wandbox-result
+  (url status compiler-output program-output))
 
 (define (post-to-wandbox contents)
   (define files-to-compile
@@ -114,14 +125,17 @@
                                                         (cons "-xc++" (map named-file-name files-to-compile))))
                                             "\n"))
                    (save . #t))))))
-  (hash-ref result-json 'url))
+  (wandbox-result (hash-ref result-json 'url)
+                  (hash-ref result-json 'status)
+                  (hash-ref result-json 'compiler_message "")
+                  (hash-ref result-json 'program_message "")))
 
 (define (match-url m) (first m))
 (define (match-hash m) (second m))
 
 (define (handle-simple-pastebin match raw-format)
   (define content (get (format raw-format (match-hash match))))
-  (make-paste-contents (match-hash match) content))
+  (make-repaste-result (match-hash match) content))
 
 (define (make-simple-handler raw-format)
   (lambda (match)
@@ -133,7 +147,7 @@
   ;; For some reason, the paste begins with "# Pastebin <hash>"
   (define stripped-content (string-join (cdr (string-split content "\n"))
                                         "\n"))
-  (make-paste-contents (match-hash match) stripped-content))
+  (make-repaste-result (match-hash match) stripped-content))
 
 (define (get-raw-gist-url url)
   (define document (get-xexp url))
@@ -149,14 +163,14 @@
   (define url (string-append "https://" (match-url match)))
   (define raw-url (string-append "https://gist.githubusercontent.com"
                                  (get-raw-gist-url url)))
-  (make-paste-contents (match-hash match) (get raw-url)))
+  (make-repaste-result (match-hash match) (get raw-url)))
 
 (define (get-paste-of-code-raw hash)
   (hash-ref (get-json (format "https://paste.ofcode.org/~a/json" hash))
             'code))
 
 (define (handle-paste-of-code match)
-  (make-paste-contents (match-hash match)
+  (make-repaste-result (match-hash match)
                        (get-paste-of-code-raw (match-hash match))))
 
 (define (strip-tags html)
@@ -183,7 +197,7 @@
   (define content
     (strip-tags ((sxpath "//td[@class='code']/div[@class='paste']//pre")
                  (get-xexp url))))
-  (make-paste-contents (match-hash match) content))
+  (make-repaste-result (match-hash match) content))
 
 (define (choose-proxy)
   (define json (get-json (string-append "https://api.getproxylist.com/proxy"
@@ -203,7 +217,7 @@
     (when (empty? pre-contents)
       (raise-user-error "No paste contents found"))
     (define content (strip-tags pre-contents))
-    (make-paste-contents (match-hash match) content)))
+    (make-repaste-result (match-hash match) content)))
 
 (define (handle-paste-all match)
   (define id (match-hash match))
@@ -211,18 +225,18 @@
   (define content (string-join ((sxpath "//pre[@id='originalcode']//text()")
                                 (get-xexp url))
                                "\n"))
-  (make-paste-contents id content))
+  (make-repaste-result id content))
 
 (define (handle-paste-org-ru match)
   (define id (match-hash match))
   (define url (format "http://paste.org.ru/?~a" id))
   (define content (strip-tags ((sxpath "//ol[@id='code']")
                                 (get-xexp url))))
-  (make-paste-contents id content))
+  (make-repaste-result id content))
 
 (define (handle-paste-org match)
   (define id (match-hash match))
-  (make-paste-contents id
+  (make-repaste-result id
                        (string-join ((sxpath "//textarea/text()")
                                      (get-xexp (format "https://www.paste.org/~a" id)))
                                     "")))
@@ -241,14 +255,14 @@
     [(empty? file-boxes)
      (raise-user-error "No files in paste")]
     [(= (length file-boxes) 1)
-     (make-paste-contents (match-hash m)
+     (make-repaste-result (match-hash m)
                           (get (box-raw-url (first file-boxes))))]
     [else
      (define files
        (for/list ([box (in-list file-boxes)])
          (named-file (first ((sxpath "//h2/span/text()") box))
                      (get (box-raw-url box)))))
-     (make-paste-contents (match-hash m) "" files)]))
+     (make-repaste-result (match-hash m) "" files)]))
 
 (define-ffi-definer define-crypto libcrypto)
 (define-crypto ERR_get_error (_fun -> _long))
@@ -398,7 +412,7 @@
   (define url (format "https://zerobin.hsbp.org/?~a" id))
   (define compressed-content (decrypt-sjcl (get-zerobin-payload url)
                               password))
-  (make-paste-contents id (bytes->string/utf-8
+  (make-repaste-result id (bytes->string/utf-8
                            (inflate-bytes (base64-decode compressed-content)))))
 
 (define (handle-0bin match)
@@ -410,7 +424,7 @@
      (string-join ((sxpath "//pre[@id='paste-content']/code//text()")
                    (get-xexp url)))
      read-json))
-  (make-paste-contents id (bytes->string/utf-8
+  (make-repaste-result id (bytes->string/utf-8
                            (base64-decode (decrypt-sjcl payload password)))))
 
 (define (bytes-map in f)
@@ -460,7 +474,7 @@
 
   (define paste (second (string-split (bytes->string/utf-8 plaintext)
                                       "\u0000\u0000")))
-  (make-paste-contents (match-hash match) paste))
+  (make-repaste-result (match-hash match) paste))
 
 (define (handle-paste-kde-org m)
   (define url (string-append "https://" (match-url m)))
@@ -479,10 +493,10 @@
     (match raw-url-anchor
       [(list 'a (list-no-order '@ (list 'href href) _ ...) _ ...)
        href]))
-  (make-paste-contents (match-hash m) (get raw-url)))
+  (make-repaste-result (match-hash m) (get raw-url)))
 
 (define (handle-kopy-io match)
-  (make-paste-contents (match-hash match)
+  (make-repaste-result (match-hash match)
                        (hash-ref (get-json (format "https://kopy.io/documents/~a"
                                                    (match-hash match)))
                                  'data)))
@@ -507,7 +521,7 @@
                                 '(response codeshare codeCheckpoint value)))
        (cond
          [(list? value)
-          (make-paste-contents (match-hash match) (string-join value))]
+          (make-repaste-result (match-hash match) (string-join value))]
          [else
           (retry (sub1 attempt))])]
       [else
@@ -520,7 +534,7 @@
       s))
 
 (define (handle-tail-ml match)
-  (make-paste-contents (match-hash match)
+  (make-repaste-result (match-hash match)
                        (remove-bom
                         (string-join (map (λ (line) (string-trim line #:left? #f))
                                           ((sxpath "//code[@id='p']/text()")
@@ -584,13 +598,13 @@
                  "paste sites that can't compile code."))
 
 (define (repaste user match handler [id-override #f])
-  (define contents (handler match))
-  (define result-url (post-to-wandbox contents))
+  (define result (handler match))
+  (define result-url (wandbox-result-url (post-to-wandbox (repaste-result-contents result))))
   (define count (get-and-increment-nick-count user))
   (define id
     (cond
       [id-override => identity]
-      [else (paste-contents-id contents)]))
+      [else (repaste-result-id result)]))
   (case count
     [(1) (format repaste-format-first id result-url user)]
     [else (format repaste-format-subsequent
@@ -688,6 +702,67 @@
     #px"tinyurl\\.com/([a-zA-Z0-9-]+)"
     ))
 
+(define (do-job f)
+  (dynamic-wind void f (λ () (collect-garbage))))
+
+(define (format-code code)
+  (define style-options
+    (list "AllowShortFunctionsOnASingleLine: None"
+          "PointerAlignment: Left"))
+  (define command-line (string-append "clang-format -style='{BasedOnStyle: LLVM, "
+                                      (string-join style-options ", ")
+                                      "}'"))
+  (match (process command-line)
+    [`(,stdout ,stdin ,_ ,stderr ,control)
+     (dynamic-wind
+       void
+       (thunk
+        (copy-port (open-input-string code) stdin)
+        (close-output-port stdin)
+        (control 'wait)
+        (port->string stdout))
+       (thunk
+        (close-input-port stdout)
+        (close-input-port stderr)))]))
+
+(define (first-line str)
+  (define lines (string-split str "\n"))
+  (if (empty? lines)
+      #f
+      (first lines)))
+
+(define (process-compile-output str)
+  (let/ec return
+    (for ([line (in-list (string-split str "\n"))])
+      (cond
+        [(regexp-match #px"(error|warning).*" line) => (λ (m) (return (first m)))]))))
+
+(define (handle-snippet target message)
+  (define code
+    (format-code
+     (cond
+       [(string-prefix? message "{")
+        (string-append "int main() " message)]
+       [(string-prefix? message "<<")
+        (format "int main() { cout ~a; }" message)]
+       [else
+        message])))
+  (define pasted-program (post-to-wandbox
+                          (make-paste-contents (string-append "#include \"std.hpp\"\n\n" code)
+                                               (list (named-file "std.hpp" std-header)))))
+  (define answer
+    (let ([url (wandbox-result-url pasted-program)]
+          [compile-output (wandbox-result-compiler-output pasted-program)]
+          [program-output (wandbox-result-program-output pasted-program)])
+      (cond
+        [(non-empty-string? compile-output)
+         (format "~a | Compile result: ~a" url (process-compile-output compile-output))]
+        [(non-empty-string? program-output)
+         (format "~a | Program output: ~a" url (first-line program-output))]
+        [else
+         url])))
+  (send-privmsg target answer))
+
 (define (try-handle-message target user message [id-override #f])
   (define msg (filter-cr message))
   (let/ec return
@@ -698,24 +773,35 @@
       (when match
         (thread
          (lambda ()
-           (dynamic-wind
-             void
-             (lambda () (send-privmsg target (repaste user match handler id-override)))
-             (lambda () (collect-garbage)))))
+           (do-job
+            (thunk (send-privmsg target (repaste user match handler id-override))))))
         (return #t))))
   #f)
 
 (define (handle-privmsg target user message)
-  (unless (try-handle-message target user message)
-    (define msg (filter-cr message))
-    (let/ec return
-      (for ([shortener (in-list shorteners)])
-        (cond
-          [(regexp-match shortener msg)
-           => (λ (match)
-                (define link-target (get-redirect-target (string-append "https://" (first match))))
-                (when (try-handle-message target user link-target (second match))
-                  (return (void))))])))))
+  (define own-nick (config-value 'nick))
+  (define own-nick-length (string-length own-nick))
+  (cond
+    [(and (string-prefix? (string-downcase message) (string-downcase own-nick))
+          (> (string-length message) own-nick-length))
+     (define snippet-start
+       (let ([separator (string-ref message own-nick-length)])
+         (if (or (char=? separator #\:) (char=? separator #\,))
+             (add1 own-nick-length)
+             own-nick-length)))
+     (do-job (thunk (handle-snippet target (string-trim (substring message snippet-start)))))]
+    [(try-handle-message target user message)
+     (void)]
+    [else
+     (define msg (filter-cr message))
+     (let/ec return
+       (for ([shortener (in-list shorteners)])
+         (cond
+           [(regexp-match shortener msg)
+            => (λ (match)
+                 (define link-target (get-redirect-target (string-append "https://" (first match))))
+                 (when (try-handle-message target user link-target (second match))
+                   (return (void))))])))]))
 
 (define irc-thread #f)
 (define (send-privmsg channel message)
