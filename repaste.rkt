@@ -109,28 +109,35 @@
   (define files-to-compile
     (filter (λ (file) (not (string-contains? (named-file-name file) ".h")))
             (paste-contents-other-files contents)))
-  (define result-json
-    (post-json "https://wandbox.org/api/compile.json"
-               (jsexpr->bytes
-                (make-hash
-                 `((compiler . "gcc-head")
-                   (code . ,(paste-contents-main-file-contents contents))
-                   (codes . ,(for/list ([file (in-list (paste-contents-other-files contents))])
-                               (make-hash
-                                `((file . ,(named-file-name file))
-                                  (code . ,(named-file-contents file))))))
-                   (options . "c++2a,warning,optimize,boost-nothing-gcc-head")
-                   (compiler-option-raw . ,(string-join
-                                            (append '("-pedantic" "-pthread")
-                                                    (if (empty? files-to-compile)
-                                                        '()
-                                                        (cons "-xc++" (map named-file-name files-to-compile))))
-                                            "\n"))
-                   (save . #t))))))
-  (wandbox-result (hash-ref result-json 'url)
-                  (hash-ref result-json 'status)
-                  (hash-ref result-json 'compiler_message "")
-                  (hash-ref result-json 'program_message "")))
+  (define request-data
+    (jsexpr->bytes
+     (make-hash
+      `((compiler . "gcc-head")
+        (code . ,(paste-contents-main-file-contents contents))
+        (codes . ,(for/list ([file (in-list (paste-contents-other-files contents))])
+                    (make-hash
+                     `((file . ,(named-file-name file))
+                       (code . ,(named-file-contents file))))))
+        (options . "c++2a,warning,optimize,boost-nothing-gcc-head")
+        (compiler-option-raw . ,(string-join
+                                 (append '("-pedantic" "-pthread")
+                                         (if (empty? files-to-compile)
+                                             '()
+                                             (cons "-xc++" (map named-file-name files-to-compile))))
+                                 "\n"))
+        (save . #t)))))
+  (define (try-post attempts-remaining)
+    (with-handlers ([exn:fail? (λ (e)
+                                 (printf "Posting to Wandbox failed: ~a~n" (exn-message e))
+                                 (if (> attempts-remaining 0)
+                                     (try-post (sub1 attempts-remaining))
+                                     (raise e)))])
+      (define result-json (post-json "https://wandbox.org/api/compile.json" request-data))
+      (wandbox-result (hash-ref result-json 'url)
+                      (hash-ref result-json 'status)
+                      (hash-ref result-json 'compiler_message "")
+                      (hash-ref result-json 'program_message ""))))
+  (try-post 3))
 
 (define (match-url m) (first m))
 (define (match-hash m) (second m))
