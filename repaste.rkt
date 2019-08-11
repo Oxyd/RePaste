@@ -89,10 +89,12 @@
   (name contents))
 
 (struct paste-contents
-  (main-file-contents other-files))
+  (main-file-contents other-files)
+  #:transparent)
 
 (struct repaste-result
-  (id contents))
+  (id contents)
+  #:transparent)
 
 (define (make-paste-contents main-file-contents [other-files '()])
   (paste-contents main-file-contents other-files))
@@ -542,6 +544,11 @@
                                                                     (match-url match)))))
                                      "\n"))))
 
+(define (handle-dpaste-de match)
+  (define raw-html (get-xexp (format "https://dpaste.de/~a/raw" (match-hash match))))
+  (make-repaste-result (match-hash match)
+                       (string-join ((sxpath "//pre/text()") raw-html) "")))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -625,8 +632,7 @@
      . ,(make-simple-handler "https://paste.pound-python.org/raw/~a/"))
     (#px"dpaste\\.com/(\\w+)"
      . ,(make-simple-handler "http://dpaste.com/~a.txt"))
-    (#px"dpaste\\.de/(\\w+)"
-     . ,(make-simple-handler "https://dpaste.de/~a/raw"))
+    (#px"dpaste\\.de/(\\w+)" . ,handle-dpaste-de)
     (#px"paste\\.debian\\.net/(\\d+)/"
      . ,(make-simple-handler "http://paste.debian.net/plain/~a"))
     (#px"paste\\.debian\\.net/plain/(\\d+)"
