@@ -103,7 +103,7 @@
   (repaste-result id (make-paste-contents main-file-contents other-files)))
 
 (struct wandbox-result
-  (url status compiler-output program-output))
+  (url compiler-output program-output signal))
 
 (define (post-to-wandbox contents)
   (define files-to-compile
@@ -133,10 +133,11 @@
                                      (try-post (sub1 attempts-remaining))
                                      (raise e)))])
       (define result-json (post-json "https://wandbox.org/api/compile.json" request-data))
+      (writeln result-json)
       (wandbox-result (hash-ref result-json 'url)
-                      (hash-ref result-json 'status)
                       (hash-ref result-json 'compiler_message "")
-                      (hash-ref result-json 'program_message ""))))
+                      (hash-ref result-json 'program_message "")
+                      (hash-ref result-json 'signal ""))))
   (try-post 3))
 
 (define (match-url m) (first m))
@@ -767,10 +768,15 @@
   (define answer
     (let ([url (wandbox-result-url pasted-program)]
           [compile-output (wandbox-result-compiler-output pasted-program)]
-          [program-output (wandbox-result-program-output pasted-program)])
+          [program-output (wandbox-result-program-output pasted-program)]
+          [signal (wandbox-result-signal pasted-program)])
       (cond
         [(non-empty-string? compile-output)
          (format "~a | Compile result: ~a" url (process-compile-output compile-output))]
+        [(and (non-empty-string? program-output) (non-empty-string? signal))
+         (format "~a | Signalled: ~a | Program output: ~a" url signal (first-line program-output))]
+        [(non-empty-string? signal)
+         (format "~a | Signalled: ~a" url signal)]
         [(non-empty-string? program-output)
          (format "~a | Program output: ~a" url (first-line program-output))]
         [else
