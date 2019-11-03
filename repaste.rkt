@@ -140,24 +140,20 @@
                       (hash-ref result-json 'signal ""))))
   (try-post 3))
 
-(define (match-url m) (first m))
-(define (match-hash m) (second m))
-
-(define (handle-simple-pastebin match raw-format)
-  (define content (get (format raw-format (match-hash match))))
-  (make-repaste-result (match-hash match) content))
+(define (handle-simple-pastebin url id raw-format)
+  (define content (get (format raw-format id)))
+  (make-repaste-result id content))
 
 (define (make-simple-handler raw-format)
-  (lambda (match)
-    (handle-simple-pastebin match raw-format)))
+  (lambda (url id)
+    (handle-simple-pastebin id raw-format)))
 
-(define (handle-irccloud match)
-  (define content (get (format "https://www.irccloud.com/pastebin/raw/~a"
-                               (match-hash match))))
+(define (handle-irccloud url id)
+  (define content (get (format "https://www.irccloud.com/pastebin/raw/~a" id)))
   ;; For some reason, the paste begins with "# Pastebin <hash>"
   (define stripped-content (string-join (cdr (string-split content "\n"))
                                         "\n"))
-  (make-repaste-result (match-hash match) stripped-content))
+  (make-repaste-result id stripped-content))
 
 (define (get-raw-gist-url url)
   (define document (get-xexp url))
@@ -169,19 +165,18 @@
       [_ (void)]))
   (call/ec (lambda (raw) (process document raw))))
 
-(define (handle-gist match)
-  (define url (string-append "https://" (match-url match)))
+(define (handle-gist url id)
+  (define url (string-append "https://" url))
   (define raw-url (string-append "https://gist.githubusercontent.com"
                                  (get-raw-gist-url url)))
-  (make-repaste-result (match-hash match) (get raw-url)))
+  (make-repaste-result id (get raw-url)))
 
-(define (get-paste-of-code-raw hash)
-  (hash-ref (get-json (format "https://paste.ofcode.org/~a/json" hash))
+(define (get-paste-of-code-raw id)
+  (hash-ref (get-json (format "https://paste.ofcode.org/~a/json" id))
             'code))
 
-(define (handle-paste-of-code match)
-  (make-repaste-result (match-hash match)
-                       (get-paste-of-code-raw (match-hash match))))
+(define (handle-paste-of-code url id)
+  (make-repaste-result id (get-paste-of-code-raw id)))
 
 (define (strip-tags html)
   (match html
@@ -205,12 +200,12 @@
 (define (string->json s)
   (call-with-input-string s read-json))
 
-(define (handle-ubuntu-paste match)
-  (define url (format "https://paste.ubuntu.com/p/~a/" (match-hash match)))
+(define (handle-ubuntu-paste url id)
+  (define url (format "https://paste.ubuntu.com/p/~a/" id))
   (define content
     (strip-tags ((sxpath "//td[@class='code']/div[@class='paste']//pre")
                  (get-xexp url))))
-  (make-repaste-result (match-hash match) content))
+  (make-repaste-result id content))
 
 (define (choose-proxy)
   (define json (get-json (string-append "https://api.getproxylist.com/proxy"
@@ -221,45 +216,42 @@
         (hash-ref json 'ip)
         (hash-ref json 'port)))
 
-(define (handle-crna-cc match)
+(define (handle-crna-cc url id)
   (parameterize ([current-proxy-servers (cons (choose-proxy)
                                               (current-proxy-servers))])
-    (define url (format "http://crna.cc/~a" (match-hash match)))
+    (define url (format "http://crna.cc/~a" id))
     (define pre-contents ((sxpath "//div[@class='pasted']//pre")
                           (get-xexp url)))
     (when (empty? pre-contents)
       (raise-user-error "No paste contents found"))
     (define content (strip-tags pre-contents))
-    (make-repaste-result (match-hash match) content)))
+    (make-repaste-result id content)))
 
-(define (handle-paste-all match)
-  (define id (match-hash match))
+(define (handle-paste-all url id)
   (define url (format "http://pasteall.org/~a" id))
   (define content (string-join ((sxpath "//pre[@id='originalcode']//text()")
                                 (get-xexp url))
                                "\n"))
   (make-repaste-result id content))
 
-(define (handle-paste-org-ru match)
-  (define id (match-hash match))
+(define (handle-paste-org-ru original-url id)
   (define url (format "http://paste.org.ru/?~a" id))
   (define content (strip-tags ((sxpath "//ol[@id='code']")
                                 (get-xexp url))))
   (make-repaste-result id content))
 
-(define (handle-paste-org match)
-  (define id (match-hash match))
+(define (handle-paste-org url id)
   (make-repaste-result id
                        (string-join ((sxpath "//textarea/text()")
                                      (get-xexp (format "https://www.paste.org/~a" id)))
                                     "")))
 
-(define (handle-paste-gg m)
-  (define main-xexp (get-xexp (string-append "https://" (match-url m))))
+(define (handle-paste-gg url id)
+  (define main-xexp (get-xexp (string-append "https://" url)))
   (define file-boxes ((sxpath "//div[@class='box']") main-xexp))
   (define (box-raw-url xexp)
     (define relative (match (first ((sxpath "//a") xexp))
-                       [`(a ,(list-no-order '@ `(href ,url) _ ...) ,_) url]))
+                       [`(a ,(list-no-order '@ `(href ,href-url) _ ...) ,_) href-url]))
     (string-append "https://paste.gg"
                    ;; XXX: This should probably use some actual HTML entity
                    ;; decoder instead of string-replace.
@@ -268,14 +260,14 @@
     [(empty? file-boxes)
      (raise-user-error "No files in paste")]
     [(= (length file-boxes) 1)
-     (make-repaste-result (match-hash m)
+     (make-repaste-result id
                           (get (box-raw-url (first file-boxes))))]
     [else
      (define files
        (for/list ([box (in-list file-boxes)])
          (named-file (first ((sxpath "//h2/span/text()") box))
                      (get (box-raw-url box)))))
-     (make-repaste-result (match-hash m) "" files)]))
+     (make-repaste-result id "" files)]))
 
 (define-ffi-definer define-crypto libcrypto)
 (define-crypto ERR_get_error (_fun -> _long))
@@ -439,7 +431,9 @@
   (define ciphertext (subbytes ct+tag 0 ciphertext-length))
   (define tag (subbytes ct+tag ciphertext-length))
   (define key-size (/ (hash-ref data 'ks 128) 8))
-  (define key (PKCS5_PBKDF2_HMAC password
+  (define key (PKCS5_PBKDF2_HMAC (if (string? password)
+                                     (string->bytes/utf-8 password)
+                                     password)
                                  (base64-decode (data-bytes 'salt))
                                  (hash-ref data 'iter 1000)
                                  (EVP_sha256)
@@ -464,18 +458,14 @@
                                                    (get-xexp url)))))
                           'data)))
 
-(define (handle-zerobin match)
-  (define id (second match))
-  (define password (string->bytes/utf-8 (third match)))
+(define (handle-zerobin original-url id password)
   (define url (format "https://zerobin.hsbp.org/?~a" id))
   (define compressed-content (decrypt-sjcl (get-zerobin-payload url)
                               password))
   (make-repaste-result id (bytes->string/utf-8
                            (inflate-bytes (base64-decode compressed-content)))))
 
-(define (handle-0bin match)
-  (define id (second match))
-  (define password (string->bytes/utf-8 (third match)))
+(define (handle-0bin original-url id password)
   (define url (format "https://0bin.net/paste/~a" id))
   (define payload
     (call-with-input-string
@@ -508,8 +498,8 @@
       [else b]))
   (bytes-map (base64-encode in #"") f))
 
-(define (handle-riseup match)
-  (define seed (base64-url-decode (string->bytes/utf-8 (match-hash match))))
+(define (handle-riseup url id)
+  (define seed (base64-url-decode (string->bytes/utf-8 id)))
   (define out (SHA512 seed))
   (define key (subbytes out 0 (/ 256 8)))
   (define iv (subbytes out (/ 256 8) (/ 384 8)))
@@ -532,10 +522,10 @@
 
   (define paste (second (string-split (bytes->string/utf-8 plaintext)
                                       "\u0000\u0000")))
-  (make-repaste-result (match-hash match) paste))
+  (make-repaste-result id paste))
 
-(define (handle-paste-kde-org m)
-  (define url (string-append "https://" (match-url m)))
+(define (handle-paste-kde-org match-url id)
+  (define url (string-append "https://" match-url))
   (define (raw-anchor? a)
     (match a
       [(list 'a (list '@ _ ...) "Raw") #t]
@@ -551,15 +541,14 @@
     (match raw-url-anchor
       [(list 'a (list-no-order '@ (list 'href href) _ ...) _ ...)
        href]))
-  (make-repaste-result (match-hash m) (get raw-url)))
+  (make-repaste-result id (get raw-url)))
 
-(define (handle-kopy-io match)
-  (make-repaste-result (match-hash match)
-                       (hash-ref (get-json (format "https://kopy.io/documents/~a"
-                                                   (match-hash match)))
+(define (handle-kopy-io url id)
+  (make-repaste-result id
+                       (hash-ref (get-json (format "https://kopy.io/documents/~a" id))
                                  'data)))
 
-(define (handle-codeshare-io match)
+(define (handle-codeshare-io url id)
   ;; codeshare.io is a piece of junk because it ends in .io. It likes to timeout
   ;; often, usually giving some other reply than what we're expecting. We'll
   ;; simply retry a few times if that happens.
@@ -571,15 +560,14 @@
     (define bootstrap
       (string->jsexpr
        (string-join ((sxpath "//script[@id='bootstrapData']/text()")
-                     (get-xexp (format "https://codeshare.io/~a"
-                                       (match-hash match)))))))
+                     (get-xexp (format "https://codeshare.io/~a" id))))))
     (cond
       [(>= (length bootstrap) 2)
        (define value (json-path (second bootstrap)
                                 '(response codeshare codeCheckpoint value)))
        (cond
          [(list? value)
-          (make-repaste-result (match-hash match) (string-join value))]
+          (make-repaste-result id (string-join value))]
          [else
           (retry (sub1 attempt))])]
       [else
@@ -591,18 +579,17 @@
       (substring s 1)
       s))
 
-(define (handle-tail-ml match)
-  (make-repaste-result (match-hash match)
+(define (handle-tail-ml url id)
+  (make-repaste-result id
                        (remove-bom
                         (string-join (map (λ (line) (string-trim line #:left? #f))
                                           ((sxpath "//code[@id='p']/text()")
-                                           (get-xexp (string-append "https://"
-                                                                    (match-url match)))))
+                                           (get-xexp (string-append "https://" url))))
                                      "\n"))))
 
-(define (handle-dpaste-de match)
-  (define raw-html (get-xexp (format "https://dpaste.de/~a/raw" (match-hash match))))
-  (make-repaste-result (match-hash match)
+(define (handle-dpaste-de url id)
+  (define raw-html (get-xexp (format "https://dpaste.de/~a/raw" id)))
+  (make-repaste-result id
                        (string-join ((sxpath "//pre/text()") raw-html) "")))
 
 (define nick-counts-file "counts.rktd")
@@ -661,7 +648,7 @@
                  "paste sites that can't compile code."))
 
 (define (repaste user match handler [id-override #f])
-  (define result (handler match))
+  (define result (apply handler match))
   (define result-url (wandbox-result-url (post-to-wandbox (repaste-result-contents result))))
   (define count (get-and-increment-nick-count user))
   (define id
