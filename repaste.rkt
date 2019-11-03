@@ -460,10 +460,9 @@
   ;; The payload is formatted like [{"data": "another JSON object encoded as a
   ;; string"}]. We are interested in the inner JSON.
 
-  (define outer-json-string (car ((sxpath "//div[@id='cipherdata']/text()")
-                                  (get-xexp url))))
-  (define outer-json (call-with-input-string outer-json-string read-json))
-  (call-with-input-string (hash-ref outer-json 'data) read-json))
+  (string->json (hash-ref (car (string->json (car ((sxpath "//div[@id='cipherdata']/text()")
+                                                   (get-xexp url)))))
+                          'data)))
 
 (define (handle-zerobin match)
   (define id (second match))
