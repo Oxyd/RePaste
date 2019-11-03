@@ -61,17 +61,17 @@
                       [(301 302) (extract-location headers)]
                       [else #f]))))
 
-(define (get url)
-  (request url get-impure-port port->string))
+(define (get url #:header [header null] #:handle [handle port->string])
+  (request url (λ (u) (get-impure-port u header)) handle))
 
 (define (get-bytes url)
-  (request url get-impure-port port->bytes))
+  (get url #:handle port->bytes))
 
 (define (get-xexp url)
-  (request url get-impure-port html->xexp))
+  (get url #:handle html->xexp))
 
-(define (get-json url)
-  (request url get-impure-port read-json))
+(define (get-json url [header null])
+  (get url #:header header #:handle read-json))
 
 (define (post url data [header null])
   (request url
@@ -202,6 +202,9 @@
                      (cdr path))
           #f)))
 
+(define (string->json s)
+  (call-with-input-string s read-json))
+
 (define (handle-ubuntu-paste match)
   (define url (format "https://paste.ubuntu.com/p/~a/" (match-hash match)))
   (define content
@@ -298,6 +301,9 @@
 (define-crypto EVP_aes_128_ccm (_fun -> _EVP_CIPHER))
 (define-crypto EVP_aes_192_ccm (_fun -> _EVP_CIPHER))
 (define-crypto EVP_aes_256_ccm (_fun -> _EVP_CIPHER))
+(define-crypto EVP_aes_128_gcm (_fun -> _EVP_CIPHER))
+(define-crypto EVP_aes_192_gcm (_fun -> _EVP_CIPHER))
+(define-crypto EVP_aes_256_gcm (_fun -> _EVP_CIPHER))
 (define-crypto EVP_sha256 (_fun -> _EVP_MD))
 (define-crypto PKCS5_PBKDF2_HMAC
   (_fun (pass : _bytes)
@@ -314,7 +320,9 @@
              out)))
 
 (define EVP_CTRL_CCM_SET_IVLEN #x9)
+;; EVP_CTRL_GCM_SET_IVLEN is the same value as EVP_CTRL_CCM_SET_IVLEN
 (define EVP_CTRL_CCM_SET_TAG #x11)
+;; EVP_CTRL_GCM_SET_TAG is the same value as EVP_CTRL_CCM_SET_TAG
 (define-crypto EVP_CIPHER_CTX_ctrl
   (_fun _EVP_CIPHER_CTX _int _int _bytes -> (r : _int)
         -> (check-crypto-result "EVP_CIPHER_CTX_ctrl" r)))
@@ -327,14 +335,14 @@
         -> (check-crypto-result "EVP_DecryptInit_ex" r)))
 (define-crypto EVP_DecryptUpdate
   (_fun (ctx : _EVP_CIPHER_CTX)
-        (out : (_bytes o (+ (bytes-length in) (EVP_CIPHER_CTX_block_size ctx))))
+        _pointer
         (outl : (_ptr o _int))
         (in : _bytes)
         (_int = (bytes-length in))
         -> (r : _int)
         -> (begin
              (check-crypto-result "EVP_DecryptUpdate" r)
-             (subbytes out 0 outl))))
+             outl)))
 (define-crypto EVP_DecryptUpdate/size-only
   (_fun _EVP_CIPHER_CTX
         (_bytes = #f)
@@ -344,6 +352,14 @@
         -> (r : _int)
         -> (check-crypto-result "EVP_DecryptUpdate/size-only" r))
   #:c-id EVP_DecryptUpdate)
+(define-crypto EVP_DecryptFinal_ex
+  (_fun _EVP_CIPHER_CTX
+        _pointer
+        (outl : (_ptr o _int))
+        -> (r : _int)
+        -> (begin
+             (check-crypto-result "EVP_DecryptFinal_ex" r)
+             outl)))
 
 (define-crypto SHA512
   (_fun (in : _bytes)
@@ -352,44 +368,67 @@
         -> _void
         -> out))
 
-(define (decrypt-aes-ccm ciphertext key iv tag key-size)
+(define (cipher-type key-size mode)
+  (case mode
+    [(ccm) (case (* 8 key-size)
+             [(128) (EVP_aes_128_ccm)]
+             [(192) (EVP_aes_192_ccm)]
+             [(256) (EVP_aes_256_ccm)]
+             [else (error "Invalid key size")])]
+    [(gcm) (case (* 8 key-size)
+             [(128) (EVP_aes_128_gcm)]
+             [(192) (EVP_aes_192_gcm)]
+             [(256) (EVP_aes_256_gcm)])]
+    [else (raise-user-error "Invalid encryption mode")]))
+
+(define (hexdump bytes)
+  (for/fold ([accum '()]
+             #:result (string-join (reverse accum) " "))
+            ([b (in-bytes bytes)])
+    (cons (number->string b 16) accum)))
+
+(define (decrypt-aes ciphertext key iv tag key-size mode)
   (define ctx (EVP_CIPHER_CTX_new))
-  (define length-of-length
-    (cond
-      [(>= (bytes-length ciphertext) (expt 2 24)) 4]
-      [(>= (bytes-length ciphertext) (expt 2 16)) 3]
-      [else 2]))
-  (EVP_DecryptInit_ex ctx
-                      (case (* 8 key-size)
-                        [(128) (EVP_aes_128_ccm)]
-                        [(192) (EVP_aes_192_ccm)]
-                        [(256) (EVP_aes_256_ccm)]
-                        [else (error "Invalid key size")])
-                      #f #f #f)
-  (EVP_CIPHER_CTX_ctrl ctx EVP_CTRL_CCM_SET_IVLEN (- 15 length-of-length) #f)
+
+  (EVP_DecryptInit_ex ctx (cipher-type key-size mode) #f #f #f)
+  (define ivlen (case mode
+                  [(ccm)
+                   (let ([length-of-length
+                          (cond
+                            [(>= (bytes-length ciphertext) (expt 2 24)) 4]
+                            [(>= (bytes-length ciphertext) (expt 2 16)) 3]
+                            [else 2])])
+                     (- 15 length-of-length))]
+                  [(gcm)
+                   (bytes-length iv)]))
+  (EVP_CIPHER_CTX_ctrl ctx EVP_CTRL_CCM_SET_IVLEN ivlen #f)
   (EVP_CIPHER_CTX_ctrl ctx EVP_CTRL_CCM_SET_TAG (bytes-length tag) tag)
   (EVP_DecryptInit_ex ctx #f #f key iv)
-  (EVP_DecryptUpdate/size-only ctx (bytes-length ciphertext))
-  (begin0
-      (EVP_DecryptUpdate ctx ciphertext)
-    (EVP_CIPHER_CTX_free ctx)))
-
-(define (get-zerobin-payload url)
-  ;; The payload is formatted like [{"data": "another JSON object encoded as a
-  ;; string"}]. We are interested in the inner JSON.
-
-  (call-with-input-string
-   (hash-ref (car (call-with-input-string
-                   (car ((sxpath "//div[@id='cipherdata']/text()")
-                         (get-xexp url)))
-                   read-json))
-             'data)
-   read-json))
+  (define buffer-size (+ (bytes-length ciphertext)
+                         (EVP_CIPHER_CTX_block_size ctx)))
+  (case mode
+    [(ccm)
+     (define plaintext (malloc buffer-size))
+     (EVP_DecryptUpdate/size-only ctx (bytes-length ciphertext))
+     (define plaintext-length (EVP_DecryptUpdate ctx plaintext ciphertext))
+     (EVP_CIPHER_CTX_free ctx)
+     (make-sized-byte-string plaintext plaintext-length)]
+    [(gcm)
+     (define b1 (malloc buffer-size))
+     (define b2 (malloc buffer-size))
+     (define l1 (EVP_DecryptUpdate ctx b1 ciphertext))
+     (define l2 (EVP_DecryptFinal_ex ctx b2))
+     (EVP_CIPHER_CTX_free ctx)
+     (bytes-append (make-sized-byte-string b1 l1)
+                   (make-sized-byte-string b2 l2))]))
 
 (define (decrypt-sjcl data password)
-  (unless (and (string=? (hash-ref data 'mode "ccm") "ccm")
-               (string=? (hash-ref data 'cipher "aes") "aes"))
-    (error "Invalid encryption scheme"))
+  (unless (string=? (hash-ref data 'cipher "aes") "aes")
+    (raise-user-error "Only AES is supported"))
+  (define mode (case (hash-ref data 'mode "ccm")
+                 [("ccm") 'ccm]
+                 [("gcm") 'gcm]
+                 [else (raise-user-error "Unimplemented AES mode")]))
 
   (define (data-bytes key)
     (string->bytes/utf-8 (hash-ref data key)))
@@ -405,16 +444,26 @@
                                  (hash-ref data 'iter 1000)
                                  (EVP_sha256)
                                  key-size))
-  (decrypt-aes-ccm ciphertext
-                   key
-                   (base64-decode (data-bytes 'iv))
-                   tag
-                   key-size))
+  (decrypt-aes ciphertext
+               key
+               (base64-decode (data-bytes 'iv))
+               tag
+               key-size
+               mode))
 
 (define (inflate-bytes in)
   (call-with-output-bytes
    (lambda (out)
      (call-with-input-bytes in (lambda (in) (inflate in out))))))
+
+(define (get-zerobin-payload url)
+  ;; The payload is formatted like [{"data": "another JSON object encoded as a
+  ;; string"}]. We are interested in the inner JSON.
+
+  (define outer-json-string (car ((sxpath "//div[@id='cipherdata']/text()")
+                                  (get-xexp url))))
+  (define outer-json (call-with-input-string outer-json-string read-json))
+  (call-with-input-string (hash-ref outer-json 'data) read-json))
 
 (define (handle-zerobin match)
   (define id (second match))
@@ -476,7 +525,7 @@
   (define ciphertext-length (- (bytes-length payload*) tag-length))
   (define ciphertext (subbytes payload* 0 ciphertext-length))
   (define tag (subbytes payload* ciphertext-length))
-  (define plaintext (decrypt-aes-ccm ciphertext key iv tag (bytes-length key)))
+  (define plaintext (decrypt-aes ciphertext key iv tag (bytes-length key) 'ccm))
 
   ;; The plaintext payload is not just the paste, though. It begins with UTF-16
   ;; encoded JSON, followed by a null terminator (so, two null bytes), followed
