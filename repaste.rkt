@@ -140,7 +140,7 @@
                       (hash-ref result-json 'signal ""))))
   (try-post 3))
 
-(define (handle-simple-pastebin url id raw-format)
+(define (handle-simple-pastebin id raw-format)
   (define content (get (format raw-format id)))
   (make-repaste-result id content))
 
@@ -749,6 +749,7 @@
     (#px"paste\\.opensuse\\.org/view/+(\\d+)" . ,(make-simple-handler "http://paste.opensuse.org/view/raw/~a"))
     (#px"paste\\.xinu\\.at/(\\w+)" . ,(make-simple-handler "https://paste.xinu.at/~a"))
     (#px"susepaste\\.org/(\\d+)" . ,(make-simple-handler "https://susepaste.org/view/raw/~a"))
+    (#px"0x0\\.st/([a-zA-Z0-9.]+)" . ,(make-simple-handler "https://0x0.st/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
