@@ -458,12 +458,22 @@
                                                    (get-xexp url)))))
                           'data)))
 
+;; Some cryptobins like to encode the SJCL JSON as follows: {"other": "stuff",
+;; "data": "SJCL JSON represented as a string"}. This function fetches the given
+;; URL, expects to find a JSON at it, then expects to find a string at the given
+;; key, where it expects another JSON and returns that.
+(define (get/embedded-json url [header (list "Accept: application/json")] [key 'data])
+  (string->json (hash-ref (get-json url header) key)))
+
+(define (decrypt-sjcl/base64 data password)
+  (bytes->string/utf-8 (base64-decode (decrypt-sjcl data password))))
+
+(define (decrypt-sjcl/base64/inflate data password)
+  (bytes->string/utf-8 (inflate-bytes (base64-decode (decrypt-sjcl data password)))))
+
 (define (handle-zerobin original-url id password)
   (define url (format "https://zerobin.hsbp.org/?~a" id))
-  (define compressed-content (decrypt-sjcl (get-zerobin-payload url)
-                              password))
-  (make-repaste-result id (bytes->string/utf-8
-                           (inflate-bytes (base64-decode compressed-content)))))
+  (make-repaste-result id (decrypt-sjcl/base64/inflate (get-zerobin-payload url) password)))
 
 (define (handle-0bin original-url id password)
   (define url (format "https://0bin.net/paste/~a" id))
@@ -472,8 +482,14 @@
      (string-join ((sxpath "//pre[@id='paste-content']/code//text()")
                    (get-xexp url)))
      read-json))
-  (make-repaste-result id (bytes->string/utf-8
-                           (base64-decode (decrypt-sjcl payload password)))))
+  (make-repaste-result id (decrypt-sjcl/base64 payload password)))
+
+(define (handle-paste.insane.engineer url id password)
+  (define compressed-plaintext (decrypt-sjcl/base64
+                                (get/embedded-json (format "https://paste.insane.engineer/?~a" id))
+                                password))
+  (make-repaste-result id
+                       (bytes->string/utf-8 (inflate-bytes (string->bytes/latin-1 compressed-plaintext)))))
 
 (define (bytes-map in f)
   (define result (bytes-copy in))
@@ -740,6 +756,7 @@
     (#px"paste\\.gg/p/[^/]+/([a-zA-Z0-9]+)" . ,handle-paste-gg)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
     (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_+-]+)" . ,handle-0bin)
+    (#px"paste\\.insane\\.engineer/\\?([^#]+)#([^=]+=)" . ,handle-paste.insane.engineer)
     (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)
     (#px"paste\\.kde\\.org/(\\w+)" . ,handle-paste-kde-org)
     (#px"kopy\\.io/([a-zA-Z0-9]+)" . ,handle-kopy-io)
