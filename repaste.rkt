@@ -484,12 +484,16 @@
      read-json))
   (make-repaste-result id (decrypt-sjcl/base64 payload password)))
 
-(define (handle-paste.insane.engineer url id password)
+(define (handle-privatebin base-url url id password)
   (define compressed-plaintext (decrypt-sjcl/base64
-                                (get/embedded-json (format "https://paste.insane.engineer/?~a" id))
+                                (get/embedded-json (format "https://~a/?~a" base-url id))
                                 password))
   (make-repaste-result id
                        (bytes->string/utf-8 (inflate-bytes (string->bytes/latin-1 compressed-plaintext)))))
+
+(define (make-privatebin-handler base-url)
+  (λ (url id password)
+    (handle-privatebin base-url url id password)))
 
 (define (bytes-map in f)
   (define result (bytes-copy in))
@@ -756,7 +760,8 @@
     (#px"paste\\.gg/p/[^/]+/([a-zA-Z0-9]+)" . ,handle-paste-gg)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
     (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_+-]+)" . ,handle-0bin)
-    (#px"paste\\.insane\\.engineer/\\?([^#]+)#([^=]+=)" . ,handle-paste.insane.engineer)
+    (#px"paste\\.insane\\.engineer/\\?([^#]+)#([^=]+=)" . ,(make-privatebin-handler "paste.insane.engineer"))
+    (#px"bin\\.privacytools\\.io/\\?([^#]+)#([^=]+=)" . ,(make-privatebin-handler "bin.privacytools.io"))
     (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)
     (#px"paste\\.kde\\.org/(\\w+)" . ,handle-paste-kde-org)
     (#px"kopy\\.io/([a-zA-Z0-9]+)" . ,handle-kopy-io)
