@@ -165,8 +165,8 @@
       [_ (void)]))
   (call/ec (lambda (raw) (process document raw))))
 
-(define (handle-gist url id)
-  (define url (string-append "https://" url))
+(define (handle-gist partial-url id)
+  (define url (string-append "https://" partial-url))
   (define raw-url (string-append "https://gist.githubusercontent.com"
                                  (get-raw-gist-url url)))
   (make-repaste-result id (get raw-url)))
