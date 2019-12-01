@@ -695,7 +695,7 @@
      . ,(make-simple-handler "https://paste.fedoraproject.org/paste/~a/raw"))
     (#px"hastebin\\.com/(\\w+)\\.\\w+"
      . ,(make-simple-handler "https://hastebin.com/raw/~a"))
-    (#px"bpaste\\.net/show/(\\w+)"
+    (#px"bpaste\\.net/(?:show|raw)/(\\w+)"
      . ,(make-simple-handler "https://bpaste.net/raw/~a"))
     (#px"paste\\.ee/p/(\\w+)"
      . ,(make-simple-handler "https://paste.ee/r/~a/0"))
