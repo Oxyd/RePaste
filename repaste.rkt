@@ -612,6 +612,14 @@
   (make-repaste-result id
                        (string-join ((sxpath "//pre/text()") raw-html) "")))
 
+(define (handle-controlc-com url id)
+  (define fullscreen-url (second (first ((sxpath "//a[@class='btn' and text() = ' Fullscreen']/@href")
+                                         (get-xexp (format "https://controlc.com/~a" id))))))
+  (make-repaste-result id
+                       (filter-cr (string-join ((sxpath "//pre/text()")
+                                                (get-xexp fullscreen-url))
+                                               ""))))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -771,6 +779,7 @@
     (#px"kopy\\.io/([a-zA-Z0-9]+)" . ,handle-kopy-io)
     (#px"codeshare\\.io/([a-zA-Z0-9]+)" . ,handle-codeshare-io)
     (#px"tail\\.ml/p/([a-zA-Z0-9]+)\\.cpp" . ,handle-tail-ml)
+    (#px"controlc\\.com/([a-zA-Z0-9]+)" . ,handle-controlc-com)
     ))
 
 (define shorteners
