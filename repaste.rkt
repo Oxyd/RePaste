@@ -155,21 +155,22 @@
                                         "\n"))
   (make-repaste-result id stripped-content))
 
-(define (get-raw-gist-url url)
-  (define document (get-xexp url))
-  (define (process expr done)
-    (match expr
-      [(list 'a (list-no-order '@ (list 'href href) _ ...) "Raw")
-       (done href)]
-      [(list _ body ...) (for ([e body]) (process e done))]
-      [_ (void)]))
-  (call/ec (lambda (raw) (process document raw))))
-
 (define (handle-gist partial-url id)
-  (define url (string-append "https://" partial-url))
-  (define raw-url (string-append "https://gist.githubusercontent.com"
-                                 (get-raw-gist-url url)))
-  (make-repaste-result id (get raw-url)))
+  (define xexp (get-xexp (string-append "https://" partial-url)))
+  (define (extract-url attribute)
+    (match (first attribute)
+      [`(href ,value) value]))
+  (define files
+    (let ([headers ((sxpath "//div[@class='file-header']") xexp)])
+      (for/list ([header (in-list headers)])
+        (define name (string-trim (string-join ((sxpath "//a/strong/text()") header) "")))
+        (define content-url (string-append "https://gist.githubusercontent.com"
+                                           (extract-url ((sxpath "//a[text()='Raw']/@href") header))))
+        (list name (get content-url)))))
+  (make-repaste-result id
+                       (second (first files))
+                       (for/list ([file (in-list (rest files))])
+                         (named-file (first file) (second file)))))
 
 (define (get-paste-of-code-raw id)
   (hash-ref (get-json (format "https://paste.ofcode.org/~a/json" id))
