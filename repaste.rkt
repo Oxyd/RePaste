@@ -167,10 +167,15 @@
         (define content-url (string-append "https://gist.githubusercontent.com"
                                            (extract-url ((sxpath "//a[text()='Raw']/@href") header))))
         (list name (get content-url)))))
-  (make-repaste-result id
-                       (second (first files))
-                       (for/list ([file (in-list (rest files))])
-                         (named-file (first file) (second file)))))
+  (define (valid? file)
+    (not (string-suffix? (first file) ".md")))
+  (define files* (filter valid? files))
+  (if (empty? files*)
+      #f
+      (make-repaste-result id
+                           (second (first files*))
+                           (for/list ([file (in-list (rest files*))])
+                             (named-file (first file) (second file))))))
 
 (define (get-paste-of-code-raw id)
   (hash-ref (get-json (format "https://paste.ofcode.org/~a/json" id))
@@ -678,16 +683,20 @@
 
 (define (repaste user match handler [id-override #f])
   (define result (apply handler match))
-  (define result-url (wandbox-result-url (post-to-wandbox (repaste-result-contents result))))
-  (define count (get-and-increment-nick-count user))
-  (define id
-    (cond
-      [id-override => identity]
-      [else (repaste-result-id result)]))
-  (case count
-    [(1) (format repaste-format-first id result-url user)]
-    [else (format repaste-format-subsequent
-                  id result-url user (number->english/ordinal count))]))
+  (cond
+    [result
+     (define result-url (wandbox-result-url (post-to-wandbox (repaste-result-contents result))))
+     (define count (get-and-increment-nick-count user))
+     (define id
+       (cond
+         [id-override => identity]
+         [else (repaste-result-id result)]))
+     (case count
+       [(1) (format repaste-format-first id result-url user)]
+       [else (format repaste-format-subsequent
+                     id result-url user (number->english/ordinal count))])]
+    [else
+     #f]))
 
 (define handlers
   `((#px"pastebin\\.com/(?:raw/)?(\\w+)"
@@ -865,7 +874,10 @@
         (thread
          (lambda ()
            (do-job
-            (thunk (send-privmsg target (repaste user match handler id-override))))))
+            (thunk
+             (define result (repaste user match handler id-override))
+             (when result
+               (send-privmsg target result))))))
         (return #t))))
   #f)
 
