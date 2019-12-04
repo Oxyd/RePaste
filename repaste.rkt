@@ -133,7 +133,6 @@
                                      (try-post (sub1 attempts-remaining))
                                      (raise e)))])
       (define result-json (post-json "https://wandbox.org/api/compile.json" request-data))
-      (writeln result-json)
       (wandbox-result (hash-ref result-json 'url)
                       (hash-ref result-json 'compiler_message "")
                       (hash-ref result-json 'program_message "")
