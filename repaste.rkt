@@ -598,6 +598,15 @@
       [else
        (retry (sub1 attempt))])))
 
+(define (handle-paste2 url id)
+  (define lines ((sxpath "//ol[@class='highlight code']//li")
+                 (get-xexp (format "https://paste2.org/~a" id))))
+  ;; The format is line-per-<li>, and they usually don't include the terminating \n, except for empty lines, which
+  ;; contain nothing but the \n.
+  (define (strip line)
+    (string-replace (strip-tags line) "\n" ""))
+  (make-repaste-result id (string-join (map strip lines) "\n")))
+
 (define (remove-bom s)
   (if (and (> (string-length s) 0)
            (char=? (string-ref s 0) #\uFEFF))
@@ -790,6 +799,7 @@
     (#px"codeshare\\.io/([a-zA-Z0-9]+)" . ,handle-codeshare-io)
     (#px"tail\\.ml/p/([a-zA-Z0-9]+)\\.cpp" . ,handle-tail-ml)
     (#px"controlc\\.com/([a-zA-Z0-9]+)" . ,handle-controlc-com)
+    (#px"paste2\\.org/([a-zA-Z0-9]+)" . ,handle-paste2)
     ))
 
 (define shorteners
