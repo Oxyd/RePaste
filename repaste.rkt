@@ -746,6 +746,8 @@
      . ,(make-simple-handler "https://paste.touhou.fm/raw/~a"))
     (#px"ghostbin\\.com/paste/([a-zA-Z0-9]+)"
      . ,(make-simple-handler "https://ghostbin.com/paste/~a/raw"))
+    (#px"ghostbin\\.co/paste/([a-zA-Z0-9]+)"
+     . ,(make-simple-handler "https://ghostbin.co/paste/~a/raw"))
     (#px"nopaste\\.chaoz-irc\\.net/view/(\\w+)"
      . ,(make-simple-handler "https://nopaste.chaoz-irc.net/view/raw/~a"))
     (#px"pastiebin\\.com/(\\w+)"
