@@ -784,6 +784,7 @@
     (#px"paste\\.centos\\.org/view/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://paste.centos.org/view/raw/~a"))
     (#px"paste\\.pr0\\.tips/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://paste.pr0.tips/~a"))
     (#px"paste\\.scratchbook\\.ch/view/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://paste.scratchbook.ch/view/raw/~a"))
+    (#px"pastebin\\.pl/view/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://pastebin.pl/view/raw/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
