@@ -621,10 +621,11 @@
                                            (get-xexp (string-append "https://" url))))
                                      "\n"))))
 
-(define (handle-dpaste-de url id)
-  (define raw-html (get-xexp (format "https://dpaste.de/~a/raw" id)))
-  (make-repaste-result id
-                       (string-join ((sxpath "//pre/text()") raw-html) "")))
+(define (make-dpaste-handler pattern)
+  (λ (url id)
+    (define raw-html (get-xexp (format pattern id)))
+    (make-repaste-result id
+                         (string-join ((sxpath "//pre/text()") raw-html) ""))))
 
 (define (handle-controlc-com url id)
   (define fullscreen-url (second (first ((sxpath "//a[@class='btn' and text() = ' Fullscreen']/@href")
@@ -721,7 +722,8 @@
      . ,(make-simple-handler "https://paste.pound-python.org/raw/~a/"))
     (#px"dpaste\\.com/(\\w+)"
      . ,(make-simple-handler "http://dpaste.com/~a.txt"))
-    (#px"dpaste\\.de/(\\w+)" . ,handle-dpaste-de)
+    (#px"dpaste\\.de/(\\w+)" . ,(make-dpaste-handler "https://dpaste.de/~a/raw"))
+    (#px"dpaste\\.org/(\\w+)" . ,(make-dpaste-handler "https://dpaste.org/~a/raw"))
     (#px"paste\\.debian\\.net/(\\d+)/"
      . ,(make-simple-handler "http://paste.debian.net/plain/~a"))
     (#px"paste\\.debian\\.net/plain/(\\d+)"
