@@ -86,7 +86,8 @@
 (define jsexpr->bytes (compose string->bytes/utf-8 jsexpr->string))
 
 (struct named-file
-  (name contents))
+  (name contents)
+  #:transparent)
 
 (struct paste-contents
   (main-file-contents other-files)
@@ -635,6 +636,28 @@
                                                 (get-xexp fullscreen-url))
                                                ""))))
 
+(define (handle-bpaste.net url id)
+  (define xexp (get-xexp (format "https://bpaste.net/~a" id)))
+  (define file-xexps ((sxpath "//div[@class='files']/div[@class='file-show']") xexp))
+  (define file-names-and-ids
+    (for/list ([xexp (in-list file-xexps)])
+      (match-define (list 'div (list-no-order '@ (list 'id id) _ ...) _ ...) xexp)
+      (define name
+        (let loop ([s ((sxpath "./div[@class='meta']/text()") xexp)])
+          (cond
+            [(null? s) #f]
+            [(regexp-match #px"Filename: (.*)\\." (car s)) => second]
+            [else (loop (cdr s))])))
+      (cons name id)))
+  (define (fetch-file file-id)
+    (get (format "https://bpaste.net/raw/~a" file-id)))
+  (if (= 1 (length file-names-and-ids))
+      (make-repaste-result id (fetch-file (cdr (first file-names-and-ids))))
+      (make-repaste-result id
+                           "// Actual paste contents are in the named files."
+                           (for/list ([f (in-list file-names-and-ids)])
+                             (named-file (car f) (fetch-file (cdr f)))))))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -807,6 +830,7 @@
     (#px"tail\\.ml/p/([a-zA-Z0-9]+)\\.cpp" . ,handle-tail-ml)
     (#px"controlc\\.com/([a-zA-Z0-9]+)" . ,handle-controlc-com)
     (#px"paste2\\.org/([a-zA-Z0-9]+)" . ,handle-paste2)
+    (#px"bpaste\\.net/([a-zA-Z0-9]+)" . ,handle-bpaste.net)
     ))
 
 (define shorteners
