@@ -658,6 +658,12 @@
                            (for/list ([f (in-list file-names-and-ids)])
                              (named-file (car f) (fetch-file (cdr f)))))))
 
+(define (handle-hatebin.com url id)
+  (define xexp (get-xexp (format "https://hatebin.com/~a" id)))
+  (make-repaste-result id
+                       (string-join ((sxpath "//textarea[@id='content-editable']//text()") xexp)
+                                    "")))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -831,6 +837,7 @@
     (#px"controlc\\.com/([a-zA-Z0-9]+)" . ,handle-controlc-com)
     (#px"paste2\\.org/([a-zA-Z0-9]+)" . ,handle-paste2)
     (#px"bpaste\\.net/([a-zA-Z0-9]+)" . ,handle-bpaste.net)
+    (#px"hatebin\\.com/([a-zA-Z0-9]+)" . ,handle-hatebin.com)
     ))
 
 (define shorteners
