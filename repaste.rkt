@@ -664,6 +664,11 @@
                        (string-join ((sxpath "//textarea[@id='content-editable']//text()") xexp)
                                     "")))
 
+(define (handle-paste.gnome.org url id)
+  (define xexp (get-xexp (format "https://paste.gnome.org/~a" id)))
+  (define raw-url (second (first ((sxpath "//a[text()='Raw']/@href") xexp))))
+  (make-repaste-result id (get raw-url)))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -839,6 +844,7 @@
     (#px"paste2\\.org/([a-zA-Z0-9]+)" . ,handle-paste2)
     (#px"bpaste\\.net/([a-zA-Z0-9]+)" . ,handle-bpaste.net)
     (#px"hatebin\\.com/([a-zA-Z0-9]+)" . ,handle-hatebin.com)
+    (#px"paste\\.gnome\\.org/([a-zA-Z0-9/]+)" . ,handle-paste.gnome.org)
     ))
 
 (define shorteners
