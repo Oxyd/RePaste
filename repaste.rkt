@@ -810,6 +810,7 @@
     (#px"linx\\.li/([a-zA-Z0-9.]+)" . ,(make-simple-handler "https://linx.li/s/~a"))
     (#px"hastebin\\.com/(\\w+)" . ,(make-simple-handler "https://hastebin.com/raw/~a"))
     (#px"bpaste\\.net/show/(\\w+)" . ,(make-simple-handler "https://bpaste.net/raw/~a"))
+    (#px"paste\\.centos\\.org/view/raw/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://paste.centos.org/view/raw/~a"))
     (#px"paste\\.centos\\.org/view/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://paste.centos.org/view/raw/~a"))
     (#px"paste\\.pr0\\.tips/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://paste.pr0.tips/~a"))
     (#px"paste\\.scratchbook\\.ch/view/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://paste.scratchbook.ch/view/raw/~a"))
