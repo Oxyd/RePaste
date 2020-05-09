@@ -806,7 +806,7 @@
     (#px"paste\\.opensuse\\.org/view/+(\\d+)" . ,(make-simple-handler "http://paste.opensuse.org/view/raw/~a"))
     (#px"paste\\.xinu\\.at/(\\w+)" . ,(make-simple-handler "https://paste.xinu.at/~a"))
     (#px"susepaste\\.org/(\\d+)" . ,(make-simple-handler "https://susepaste.org/view/raw/~a"))
-    (#px"0x0\\.st/([a-zA-Z0-9.]+)" . ,(make-simple-handler "https://0x0.st/~a"))
+    (#px"0x0\\.st/([a-zA-Z0-9._]+)" . ,(make-simple-handler "https://0x0.st/~a"))
     (#px"linx\\.li/([a-zA-Z0-9.]+)" . ,(make-simple-handler "https://linx.li/s/~a"))
     (#px"hastebin\\.com/(\\w+)" . ,(make-simple-handler "https://hastebin.com/raw/~a"))
     (#px"bpaste\\.net/show/(\\w+)" . ,(make-simple-handler "https://bpaste.net/raw/~a"))
