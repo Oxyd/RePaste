@@ -12,7 +12,8 @@
          ffi/unsafe/define
          ffi/unsafe/alloc
          openssl/libcrypto
-         file/gunzip)
+         file/gunzip
+         threading)
 
 (define config (file->value "config.rkt"))
 (define (config-value key)
@@ -663,6 +664,13 @@
   (define raw-url (second (first ((sxpath "//a[text()='Raw']/@href") xexp))))
   (make-repaste-result id (get raw-url)))
 
+(define (handle-paste.touhou.fm url id)
+  (make-repaste-result id
+                       (~> (format "https://paste.touhou.fm/~a/raw" id)
+                           (get-xexp)
+                           ((sxpath "//code/text()"))
+                           (string-join ""))))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -771,8 +779,6 @@
     (#px"la\\.wentropy\\.com/(\\w+)"
      . ,(make-simple-handler "https://la.wentropy.com/~a"))
     (#px"ix\\.io/(\\w+)" . ,(make-simple-handler "http://ix.io/~a"))
-    (#px"paste\\.touhou\\.fm/(\\w+).cpp"
-     . ,(make-simple-handler "https://paste.touhou.fm/raw/~a"))
     (#px"ghostbin\\.com/paste/([a-zA-Z0-9]+)"
      . ,(make-simple-handler "https://ghostbin.com/paste/~a/raw"))
     (#px"ghostbin\\.co/paste/([a-zA-Z0-9]+)"
@@ -840,6 +846,7 @@
     (#px"bpaste\\.net/([a-zA-Z0-9]+)" . ,handle-bpaste.net)
     (#px"hatebin\\.com/([a-zA-Z0-9]+)" . ,handle-hatebin.com)
     (#px"paste\\.gnome\\.org/([a-zA-Z0-9/]+)" . ,handle-paste.gnome.org)
+    (#px"paste\\.touhou\\.fm/(\\w+)" . ,handle-paste.touhou.fm)
     ))
 
 (define shorteners
