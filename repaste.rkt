@@ -823,6 +823,7 @@
     (#px"pastebin\\.pl/view/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://pastebin.pl/view/raw/~a"))
     (#px"paste\\.serveur\\.io/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://paste.serveur.io/raw/~a"))
     (#px"bpa\\.st/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://bpa.st/raw/~a"))
+    (#px"bsd\\.ac/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://bsd.ac/~a"))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
