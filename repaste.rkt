@@ -149,6 +149,14 @@
   (lambda (url id)
     (handle-simple-pastebin id raw-format)))
 
+(define (make-xpath-extractor-handler raw-format path)
+  (lambda (url id)
+    (make-repaste-result id
+                         (~> (format raw-format id)
+                             (get-xexp)
+                             (path)
+                             (string-join "")))))
+
 (define (handle-irccloud url id)
   (define content (get (format "https://www.irccloud.com/pastebin/raw/~a" id)))
   ;; For some reason, the paste begins with "# Pastebin <hash>"
@@ -233,25 +241,6 @@
       (raise-user-error "No paste contents found"))
     (define content (strip-tags pre-contents))
     (make-repaste-result id content)))
-
-(define (handle-paste-all url id)
-  (define url (format "http://pasteall.org/~a" id))
-  (define content (string-join ((sxpath "//pre[@id='originalcode']//text()")
-                                (get-xexp url))
-                               "\n"))
-  (make-repaste-result id content))
-
-(define (handle-paste-org-ru original-url id)
-  (define url (format "http://paste.org.ru/?~a" id))
-  (define content (strip-tags ((sxpath "//ol[@id='code']")
-                                (get-xexp url))))
-  (make-repaste-result id content))
-
-(define (handle-paste-org url id)
-  (make-repaste-result id
-                       (string-join ((sxpath "//textarea/text()")
-                                     (get-xexp (format "https://www.paste.org/~a" id)))
-                                    "")))
 
 (define (handle-paste-gg url id)
   (define main-xexp (get-xexp (string-append "https://" url)))
@@ -653,24 +642,6 @@
                            (for/list ([f (in-list file-names-and-ids)])
                              (named-file (car f) (fetch-file (cdr f)))))))
 
-(define (handle-hatebin.com url id)
-  (define xexp (get-xexp (format "https://hatebin.com/~a" id)))
-  (make-repaste-result id
-                       (string-join ((sxpath "//textarea[@id='content-editable']//text()") xexp)
-                                    "")))
-
-(define (handle-paste.gnome.org url id)
-  (define xexp (get-xexp (format "https://paste.gnome.org/~a" id)))
-  (define raw-url (second (first ((sxpath "//a[text()='Raw']/@href") xexp))))
-  (make-repaste-result id (get raw-url)))
-
-(define (handle-paste.touhou.fm url id)
-  (make-repaste-result id
-                       (~> (format "https://paste.touhou.fm/~a/raw" id)
-                           (get-xexp)
-                           ((sxpath "//code/text()"))
-                           (string-join ""))))
-
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -824,14 +795,25 @@
     (#px"paste\\.serveur\\.io/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://paste.serveur.io/raw/~a"))
     (#px"bpa\\.st/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://bpa.st/raw/~a"))
     (#px"bsd\\.ac/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://bsd.ac/~a"))
+    (#px"pasteall\\.org/(\\d+)" . ,(make-xpath-extractor-handler "http://pasteall.org/~a"
+                                                                 (sxpath "//pre[@id='originalcode']//text()")))
+    (#px"paste\\.org\\.ru/\\?(\\w+)" . ,(make-xpath-extractor-handler "http://paste.org.ru/?~a"
+                                                                      (sxpath "//ol[@id='code']")))
+    (#px"paste\\.org/(\\d+)" . ,(make-xpath-extractor-handler "https://www.paste.org/~a"
+                                                              (sxpath "//textarea/text()")))
+    (#px"hatebin\\.com/([a-zA-Z0-9]+)" . ,(make-xpath-extractor-handler "https://hatebin.com/~a"
+                                                                        (sxpath "//textarea[@id='content-editable']//text()")))
+    (#px"paste\\.gnome\\.org/([a-zA-Z0-9/]+)" . ,(make-xpath-extractor-handler "https://paste.gnome.org/~a"
+                                                                               (sxpath "//a[text()='Raw']/@href")))
+    (#px"paste\\.touhou\\.fm/(\\w+)" . ,(make-xpath-extractor-handler "https://paste.touhou.fm/~a/raw"
+                                                                      (sxpath "//code/text()")))
+    (#px"bsd\\.to/(\\w+)" . ,(make-xpath-extractor-handler "https://bsd.to/~a/raw"
+                                                           (sxpath "//pre/text()")))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
     (#px"paste\\.ubuntu\\.com/p/(\\w+)" . ,handle-ubuntu-paste)
     (#px"crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
-    (#px"pasteall\\.org/(\\d+)" . ,handle-paste-all)
-    (#px"paste\\.org\\.ru/\\?(\\w+)" . ,handle-paste-org-ru)
-    (#px"paste\\.org/(\\d+)" . ,handle-paste-org)
     (#px"paste\\.gg/p/[^/]+/([a-zA-Z0-9]+)" . ,handle-paste-gg)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
     (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_+-]+)" . ,handle-0bin)
@@ -845,9 +827,6 @@
     (#px"controlc\\.com/([a-zA-Z0-9]+)" . ,handle-controlc-com)
     (#px"paste2\\.org/([a-zA-Z0-9]+)" . ,handle-paste2)
     (#px"bpaste\\.net/([a-zA-Z0-9]+)" . ,handle-bpaste.net)
-    (#px"hatebin\\.com/([a-zA-Z0-9]+)" . ,handle-hatebin.com)
-    (#px"paste\\.gnome\\.org/([a-zA-Z0-9/]+)" . ,handle-paste.gnome.org)
-    (#px"paste\\.touhou\\.fm/(\\w+)" . ,handle-paste.touhou.fm)
     ))
 
 (define shorteners
