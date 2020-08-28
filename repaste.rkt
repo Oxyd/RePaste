@@ -642,6 +642,13 @@
                            (for/list ([f (in-list file-names-and-ids)])
                              (named-file (car f) (fetch-file (cdr f)))))))
 
+(define (handle-dpaste.org url id)
+  (make-repaste-result id
+                       (~> (get-xexp (format "https://dpaste.org/~a" id))
+                           ((sxpath "//div[@id='edit']//textarea[@name='content']//text()"))
+                           (cdr) ; dpaste inserts an extra empty line at the beginning
+                           (string-join ""))))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -729,7 +736,7 @@
      . ,(make-simple-handler "https://paste.pound-python.org/raw/~a/"))
     (#px"dpaste\\.com/(\\w+)"
      . ,(make-simple-handler "http://dpaste.com/~a.txt"))
-    (#px"dpaste.org/(\\w+)" . ,(make-simple-handler "https://dpaste.org/~a/raw"))
+    (#px"dpaste.org/(\\w+)" . ,handle-dpaste.org)
     (#px"paste\\.debian\\.net/(\\d+)/"
      . ,(make-simple-handler "http://paste.debian.net/plain/~a"))
     (#px"paste\\.debian\\.net/plain/(\\d+)"
