@@ -699,10 +699,10 @@
 
 (define repaste-format-first
   (string-append "Paste ~a was moved to ~a ~a, please avoid paste sites that "
-                 "can't even compile your code."))
+                 "can't even compile your code. You might be banned otherwise. See !paste for more."))
 (define repaste-format-subsequent
   (string-append "Paste ~a was moved to ~a ~a, for the ~a time, do not use "
-                 "paste sites that can't compile code."))
+                 "paste sites that can't compile code, or you might be banned."))
 
 (define (repaste user match handler [id-override #f])
   (define result (apply handler match))
