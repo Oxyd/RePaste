@@ -170,7 +170,7 @@
     (match (first attribute)
       [`(href ,value) value]))
   (define files
-    (let ([headers ((sxpath "//div[@class='file-header' or @class='file-header ']") xexp)])
+    (let ([headers ((sxpath "//div[contains(@class, 'file-header')]") xexp)])
       (for/list ([header (in-list headers)])
         (define name (string-trim (string-join ((sxpath "//a/strong/text()") header) "")))
         (define content-url (string-append "https://gist.githubusercontent.com"
