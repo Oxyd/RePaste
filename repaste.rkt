@@ -823,7 +823,7 @@
     (#px"crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
     (#px"paste\\.gg/p/[^/]+/([a-zA-Z0-9]+)" . ,handle-paste-gg)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
-    (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_+-]+)" . ,handle-0bin)
+    (#px"0bin\\.net/paste/([^#]+)#([a-zA-Z0-9_/+-]+)" . ,handle-0bin)
     (#px"paste\\.insane\\.engineer/\\?([^#]+)#([^=]+=)" . ,(make-privatebin-handler "paste.insane.engineer"))
     (#px"bin\\.privacytools\\.io/\\?([^#]+)#([^=]+=)" . ,(make-privatebin-handler "bin.privacytools.io"))
     (#px"share\\.riseup\\.net/#([a-zA-Z0-9_-]+)" . ,handle-riseup)
