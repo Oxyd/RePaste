@@ -816,6 +816,8 @@
                                                                       (sxpath "//code/text()")))
     (#px"bsd\\.to/(\\w+)" . ,(make-xpath-extractor-handler "https://bsd.to/~a/raw"
                                                            (sxpath "//pre/text()")))
+    (#px"pb\\.jiffe\\.com/([a-zA-Z0-9]+)" . ,(make-xpath-extractor-handler "https://pb.jiffe.com/~a"
+                                                                           (sxpath "//code/text()")))
     (#px"www\\.irccloud\\.com/pastebin/([^/]+)" . ,handle-irccloud)
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
