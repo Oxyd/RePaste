@@ -649,6 +649,12 @@
                            (cdr) ; dpaste inserts an extra empty line at the beginning
                            (string-join ""))))
 
+(define (handle-bl.ocks.org url username id)
+  (define lines (~> (format "https://bl.ocks.org/~a/raw/~a/" username id)
+                    (get-xexp)
+                    ((sxpath "/html/body/div"))))
+  (make-repaste-result id (string-join (map strip-tags lines) "\n")))
+
 (define nick-counts-file "counts.rktd")
 (define nick-counts (make-hash))
 (with-handlers ([exn:fail:filesystem? void])
@@ -836,6 +842,8 @@
     (#px"controlc\\.com/([a-zA-Z0-9]+)" . ,handle-controlc-com)
     (#px"paste2\\.org/([a-zA-Z0-9]+)" . ,handle-paste2)
     (#px"bpaste\\.net/([a-zA-Z0-9]+)" . ,handle-bpaste.net)
+    (#px"bl\\.ocks\\.org/([a-zA-Z0-9]+)/raw/([a-zA-Z0-9]+)" . ,handle-bl.ocks.org)
+    (#px"bl\\.ocks\\.org/([a-zA-Z0-9]+)/([a-zA-Z0-9]+)" . ,handle-bl.ocks.org)
     ))
 
 (define shorteners
