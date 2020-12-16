@@ -54,13 +54,17 @@
                     (process-http-response url port request connect handle))))
 
 (define (get-redirect-target url)
-  (call/input-url (string->url url)
-                  get-impure-port
-                  (λ (port)
-                    (define-values (status headers) (extract-status-and-headers port))
-                    (case status
-                      [(301 302) (extract-location headers)]
-                      [else #f]))))
+  (with-handlers ([exn:fail:network?
+                   (λ (exn)
+                     ((error-display-handler) (exn-message exn) exn)
+                     #f)])
+    (call/input-url (string->url url)
+                    get-impure-port
+                    (λ (port)
+                      (define-values (status headers) (extract-status-and-headers port))
+                      (case status
+                        [(301 302) (extract-location headers)]
+                        [else #f])))))
 
 (define (get url #:header [header null] #:handle [handle port->string])
   (request url (λ (u) (get-impure-port u header)) handle))
@@ -847,8 +851,9 @@
     ))
 
 (define shorteners
-  '(#px"bit\\.ly/([a-zA-Z0-9]+)"
-    #px"tinyurl\\.com/([a-zA-Z0-9-]+)"
+  '((#px"bit\\.ly/([a-zA-Z0-9]+)" . "https")
+    (#px"tinyurl\\.com/([a-zA-Z0-9-]+)" . "https")
+    (#px"gg\\.gg/([a-zA-Z0-9]+)" . "http")
     ))
 
 (define (do-job f)
@@ -954,11 +959,12 @@
      (let/ec return
        (for ([shortener (in-list shorteners)])
          (cond
-           [(regexp-match shortener msg)
+           [(regexp-match (car shortener) msg)
             => (λ (match)
-                 (define link-target (get-redirect-target (string-append "https://" (first match))))
-                 (when (try-handle-message target user link-target (second match))
-                   (return (void))))])))]))
+                 (define link-target (get-redirect-target (string-append (cdr shortener) "://" (first match))))
+                 (when link-target
+                   (when (try-handle-message target user link-target (second match))
+                     (return (void)))))])))]))
 
 (define irc-thread #f)
 (define (send-privmsg channel message)
