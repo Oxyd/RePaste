@@ -44,7 +44,9 @@
       [(200)
        (handle port)]
       [(301 302)
-       (retry (extract-location headers) connect handle)]
+       (retry (url->string (combine-url/relative (string->url url)
+                                                 (extract-location headers)))
+              connect handle)]
       [else
        (raise-user-error (format "Couldn't read ~a: HTTP status ~a"
                                  url status))]))
@@ -220,10 +222,10 @@
   (call-with-input-string s read-json))
 
 (define (handle-ubuntu-paste url id)
-  (define url (format "https://paste.ubuntu.com/p/~a/" id))
+  (define url* (string-append "https://" url))
   (define content
     (strip-tags ((sxpath "//td[@class='code']/div[@class='paste']//pre")
-                 (get-xexp url))))
+                 (get-xexp url*))))
   (make-repaste-result id content))
 
 (define (choose-proxy)
@@ -833,6 +835,7 @@
     (#px"gist\\.github\\.com/(?:[^/]+/)?(\\w+)" . ,handle-gist)
     (#px"paste\\.ofcode\\.org/(\\w+)" . ,handle-paste-of-code)
     (#px"paste\\.ubuntu\\.com/p/(\\w+)" . ,handle-ubuntu-paste)
+    (#px"pastebin\\.ubuntu\\.com/p/(\\w+)" . ,handle-ubuntu-paste)
     (#px"crna\\.cc/([^/&# ]+)" . ,handle-crna-cc)
     (#px"paste\\.gg/p/[^/]+/([a-zA-Z0-9]+)" . ,handle-paste-gg)
     (#px"zerobin\\.hsbp\\.org/\\?([^#]+)#([^=]+=)" . ,handle-zerobin)
