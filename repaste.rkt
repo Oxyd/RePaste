@@ -815,6 +815,7 @@
     (#px"bpa\\.st/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://bpa.st/raw/~a"))
     (#px"bsd\\.ac/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://bsd.ac/~a"))
     (#px"tpaste\\.us/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://tpaste.us/~a"))
+    (#px"wtools\\.io/paste-code/([a-zA-Z0-9]+)" . ,(make-simple-handler "https://wtools.io/code/raw/~a"))
     (#px"pasteall\\.org/(\\d+)" . ,(make-xpath-extractor-handler "http://pasteall.org/~a"
                                                                  (sxpath "//pre[@id='originalcode']//text()")))
     (#px"paste\\.org\\.ru/\\?(\\w+)" . ,(make-xpath-extractor-handler "http://paste.org.ru/?~a"
